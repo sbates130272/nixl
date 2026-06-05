@@ -121,6 +121,21 @@ meson setup build -Dnixl_path=/usr/local/nixl --buildtype=release
 cd build && ninja && sudo ninja install
 ```
 
+### AMD ROCm / HIP
+
+On ROCm hosts, enable HIP VRAM in nixlbench and use hipFile storage backends:
+
+```bash
+cd benchmark/nixlbench
+meson setup build -Duse_rocm=true -Drocm_path=/opt/rocm -Dnixl_path=/opt/nixl
+meson compile -C build
+# Storage backend example (requires HIPFILE_AIS_MT plugin):
+# ./build/nixlbench --backend=HIPFILE_AIS_MT ...
+```
+
+See [`contrib/rocm/README.md`](../../contrib/rocm/README.md) for hipFile plugin build
+and Microsemi NVMe test policy.
+
 ## Building
 
 ### Docker Container Build (Recommended)

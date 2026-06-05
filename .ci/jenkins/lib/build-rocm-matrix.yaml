@@ -1,0 +1,59 @@
+# ROCm compile-only CI matrix for NIXL (hipFile / HIP plugins).
+#
+# Builds inside Dockerfile.rocm-build without GPU or NVMe hardware.
+# Hardware smoke tests run separately via contrib/rocm/test-hipfile-ais-mt.sbatch.
+
+---
+job: nixl-ci-rocm-non-gpu
+
+registry_host: harbor.mellanox.com
+registry_auth: nixl_harbor_credentials
+registry_path: /nixl/base
+
+failFast: false
+timeout_minutes: 240
+
+kubernetes:
+  cloud: il-ipp-blossom-prod
+  namespace: nbu-swx-nixl
+  limits: "{memory: 16Gi, cpu: 16000m}"
+  requests: "{memory: 8Gi, cpu: 8000m}"
+
+env:
+  NIXL_CI_ROCM_NON_GPU: 1
+  NIXL_INSTALL_DIR: /opt/nixl
+  TEST_TIMEOUT: 60
+  CI_ROCM_IMAGE_TAG: "20260605-1"
+
+runs_on_dockers:
+  - {
+     file: '.ci/dockerfiles/Dockerfile.rocm-build',
+     name: "nixl-rocm-build-ubuntu24.04",
+     tag: "${CI_ROCM_IMAGE_TAG}",
+     build_args: '--build-arg NIXL_INSTALL_DIR=${NIXL_INSTALL_DIR} --pull'
+    }
+
+matrix:
+  axes:
+    arch:
+      - x86_64
+
+steps:
+  - name: Build ROCm
+    parallel: false
+    run: |
+      meson setup build-rocm \
+        -Dwheel_variant=rocm \
+        -Ducx_path=/opt/rocnixl-ucx \
+        -Dhipfile_ais_path=/opt/rocm \
+        -Ddisable_gds_backend=true \
+        --prefix=${NIXL_INSTALL_DIR}
+      meson compile -C build-rocm
+      test -f build-rocm/src/plugins/hipfile_ais_mt/libplugin_HIPFILE_AIS_MT.so
+
+  - name: Test CPP (non-GPU subset)
+    parallel: false
+    timeout: "${TEST_TIMEOUT}"
+    run: |
+      export PRE_INSTALLED_ENV="true"
+      .gitlab/test_cpp.sh ${NIXL_INSTALL_DIR}

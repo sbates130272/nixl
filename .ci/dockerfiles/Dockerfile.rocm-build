@@ -1,0 +1,97 @@
+# NIXL ROCm compile-only CI image
+#
+# Builds NIXL with ROCm/HIP toolchain, hipFile, and ROCm UCX. GPU and NVMe
+# are not required for the compile gate.
+#
+# Usage:
+#   docker build -f .ci/dockerfiles/Dockerfile.rocm-build -t nixl-rocm-build .
+#
+
+ARG BASE_IMAGE=rocm/dev-ubuntu-24.04:latest
+ARG HIPFILE_SHA=adc1a2d2f8e886e93c5e55e674dbff6e05db2dbe
+ARG UCX_VERSION=v1.19.x
+ARG NIXL_INSTALL_DIR=/opt/nixl
+ARG WORKSPACE=/workspace/nixl
+
+FROM ${BASE_IMAGE}
+
+ARG HIPFILE_SHA
+ARG UCX_VERSION
+ARG NIXL_INSTALL_DIR
+ARG WORKSPACE
+
+ENV DEBIAN_FRONTEND=noninteractive
+ENV ROCM_PATH=/opt/rocm
+ENV PATH=${ROCM_PATH}/bin:${PATH}
+ENV LD_LIBRARY_PATH=${ROCM_PATH}/lib:${LD_LIBRARY_PATH}
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    autoconf \
+    automake \
+    build-essential \
+    ca-certificates \
+    cmake \
+    cpio \
+    git \
+    libaio-dev \
+    libibverbs-dev \
+    libltdl-dev \
+    libnuma-dev \
+    librdmacm-dev \
+    libtool \
+    liburing-dev \
+    ninja-build \
+    pkg-config \
+    python3 \
+    python3-pip \
+    rdma-core \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN python3 -m pip install --no-cache-dir meson ninja pybind11 tomlkit
+
+# hipFile from rocm-systems (sparse checkout)
+RUN git clone --depth 1 --filter=blob:none --sparse https://github.com/ROCm/rocm-systems.git /tmp/rocm-systems \
+    && cd /tmp/rocm-systems \
+    && git sparse-checkout set projects/hipfile \
+    && git checkout ${HIPFILE_SHA} \
+    && cd projects/hipfile \
+    && cmake -B build -DCMAKE_INSTALL_PREFIX=${ROCM_PATH} -DCMAKE_HIP_PLATFORM=amd \
+    && cmake --build build -j"$(nproc)" \
+    && cmake --install build \
+    && ldconfig
+
+# ROCm UCX for NIXL
+RUN git clone --depth 1 https://github.com/ROCm/ucx.git -b ${UCX_VERSION} /tmp/ucx-src \
+    && cd /tmp/ucx-src \
+    && ./autogen.sh \
+    && mkdir -p build && cd build \
+    && ../configure \
+        --prefix=/opt/rocnixl-ucx \
+        --enable-shared \
+        --disable-static \
+        --disable-doxygen-doc \
+        --enable-optimizations \
+        --enable-devel-headers \
+        --with-rocm=${ROCM_PATH} \
+        --with-verbs \
+        --with-dm \
+        --enable-mt \
+    && make -j"$(nproc)" \
+    && make install \
+    && ldconfig
+
+WORKDIR ${WORKSPACE}
+COPY . .
+
+RUN meson setup build-rocm \
+        -Dwheel_variant=rocm \
+        -Ducx_path=/opt/rocnixl-ucx \
+        -Dhipfile_ais_path=${ROCM_PATH} \
+        -Ddisable_gds_backend=true \
+        --prefix=${NIXL_INSTALL_DIR} \
+    && meson compile -C build-rocm \
+    && (test -f build-rocm/src/plugins/hipfile_ais_mt/libplugin_HIPFILE_AIS_MT.so \
+        || test -f build-rocm/src/plugins/hipfile_ais/libplugin_HIPFILE_AIS.so)
+
+ENTRYPOINT ["/bin/bash", "-c", "exec \"$@\"", "--"]
+CMD ["/bin/bash"]

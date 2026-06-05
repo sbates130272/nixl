@@ -8,8 +8,8 @@ This directory contains shared C++ utilities for NIXL file-aware backends:
   owned-fd RAII base for path-mode FILE_SEG registration; see
   [Path-Mode File Registration](#path-mode-file-registration).
 
-All file-aware plugins (POSIX, HF3FS, CUDA_GDS, GDS_MT) link
-`file_utils_interface` and consume both sets of helpers.
+All file-aware plugins (POSIX, HF3FS, CUDA_GDS, GDS_MT, HIPFILE_AIS,
+HIPFILE_AIS_MT) link `file_utils_interface` and consume both sets of helpers.
 
 ## QueryMem API Implementation through queryFileInfoList
 

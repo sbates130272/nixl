@@ -24,7 +24,7 @@ NIXL is designed to support inference frameworks by addressing their challenges 
 
 # Overview
 
-The following figure illustrates NIXL's relationship to inference server stacks. NIXL functions as a standalone library, providing the necessary abstraction for various network and storage backends to support the data plane operations of distributed inference platforms, such as NVIDIA Dynamo. The currently supported backends in NIXL are [UCX](https://github.com/openucx/ucx) and [NVIDIA Magnum IO GPUDirect Storage](https://docs.nvidia.com/gpudirect-storage/overview-guide/index.html). Support for other file systems (including DFS), block and object storage are in development. NIXL offers generic interfaces capable of supporting data transfers in the form of tensors, bytes, or objects.
+The following figure illustrates NIXL's relationship to inference server stacks. NIXL functions as a standalone library, providing the necessary abstraction for various network and storage backends to support the data plane operations of distributed inference platforms, such as NVIDIA Dynamo. The currently supported backends in NIXL are [UCX](https://github.com/openucx/ucx), [NVIDIA Magnum IO GPUDirect Storage](https://docs.nvidia.com/gpudirect-storage/overview-guide/index.html), and on ROCm hosts **HIPFILE_AIS_MT** / **HIPFILE_AIS** (AMD Infinity Storage via hipFile). Support for other file systems (including DFS), block and object storage are in development. NIXL offers generic interfaces capable of supporting data transfers in the form of tensors, bytes, or objects.
 
 ![Figure of NIXL high level architecture](figures/nixl.svg)
 

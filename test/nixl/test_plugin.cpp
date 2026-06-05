@@ -72,6 +72,8 @@ int main(int argc, char** argv) {
                                      "GPUNETIO",
                                      "OBJ",
                                      "GDS_MT",
+                                     "HIPFILE_AIS",
+                                     "HIPFILE_AIS_MT",
                                      "LIBFABRIC",
                                      "GUSLI",
                                      "UCCL",

@@ -33,18 +33,33 @@ nixl_common_deps = [
 git_hash = run_command('git', 'rev-parse', '--short=8', 'HEAD', check: false, capture: true)
 git_commit = git_hash.returncode() == 0 ? git_hash.stdout().strip() : 'unknown'
 
+gpu_utils_src = 'gpu_utils_none.cpp'
+gpu_utils_deps = []
+gpu_utils_args = []
+
+if cuda_dep.found()
+    gpu_utils_src = 'gpu_utils_cuda.cpp'
+    gpu_utils_deps += [cuda_dep]
+    gpu_utils_args += ['-DHAVE_CUDA']
+elif hip_dep.found()
+    gpu_utils_src = 'gpu_utils_hip.cpp'
+    gpu_utils_deps += [hip_dep]
+    gpu_utils_args += ['-DHAVE_HIP']
+endif
+
 # Define a shared library for common utilities
 nixl_common_lib = shared_library('nixl_common',
     'hw_info.cpp',
     'nixl_log.cpp',
     'uuid_v4.cpp',
     'configuration.cpp',
-    dependencies: nixl_common_deps,
+    gpu_utils_src,
+    dependencies: nixl_common_deps + gpu_utils_deps,
     include_directories: [nixl_common_inc, nixl_inc_dirs],
     cpp_args: [
         '-DNIXL_VERSION="' + meson.project_version() + '"',
         '-DNIXL_GIT_HASH="' + git_commit + '"'
-    ],
+    ] + gpu_utils_args,
     install: true,
 )
 

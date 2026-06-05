@@ -13,6 +13,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# ROCm / hipFile (HIPFILE_AIS, HIPFILE_AIS_MT) compile CI uses
+# .ci/dockerfiles/Dockerfile.rocm-build. See contrib/rocm/README.md and
+# contrib/rocm/README-hipfile.md.
+
 ARG BASE_IMAGE="nvcr.io/nvidia/cuda-dl-base"
 ARG BASE_IMAGE_TAG="25.10-cuda13.0-devel-ubuntu24.04"
 ARG OS
