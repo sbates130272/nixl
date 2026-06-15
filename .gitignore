@@ -24,3 +24,16 @@ subprojects/asio-*
 
 # liburing
 subprojects/liburing-*
+
+# prometheus-cpp
+subprojects/prometheus-cpp/
+
+# tomlplusplus
+subprojects/tomlplusplus-*/
+
+# Meson wrap downloads (only *.wrap and packagefiles/ are tracked)
+subprojects/.wraplock
+
+# Local Python environments
+.venv/
+.venv*/
