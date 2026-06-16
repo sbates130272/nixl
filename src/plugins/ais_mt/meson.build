@@ -2,8 +2,8 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-hipfile_ais_path = get_option('hipfile_ais_path')
-if hipfile_ais_path == ''
+rocm_ais_path = get_option('rocm_ais_path')
+if rocm_ais_path == ''
     rocm_path = run_command('bash', '-c', 'echo ${ROCM_PATH:-$ROCM_HOME}').stdout().strip()
     if rocm_path == ''
         rocm_path = '/opt/rocm'
@@ -33,8 +33,8 @@ if hipfile_ais_path == ''
         subdir_done()
     endif
 else
-    hipfile_lib_path = hipfile_ais_path + '/lib'
-    hipfile_inc_path = hipfile_ais_path + '/include'
+    hipfile_lib_path = rocm_ais_path + '/lib'
+    hipfile_inc_path = rocm_ais_path + '/include'
     hipfile_dep = declare_dependency(
         link_args: ['-L' + hipfile_lib_path, '-lhipfile',
                     '-Wl,-rpath,' + hipfile_lib_path],
@@ -45,11 +45,11 @@ if not hip_dep.found()
     subdir_done()
 endif
 
-if 'HIPFILE_AIS_MT' in static_plugins
-    hipfile_ais_mt_backend_lib = static_library('HIPFILE_AIS_MT',
-        'hipfile_ais_mt_utils.cpp', 'hipfile_ais_mt_utils.h',
-        'hipfile_ais_mt_backend.cpp', 'hipfile_ais_mt_backend.h',
-        'hipfile_ais_mt_plugin.cpp',
+if 'AIS_MT' in static_plugins
+    ais_mt_backend_lib = static_library('AIS_MT',
+        'ais_mt_utils.cpp', 'ais_mt_utils.h',
+        'ais_mt_backend.cpp', 'ais_mt_backend.h',
+        'ais_mt_plugin.cpp',
         dependencies: [nixl_infra, nixl_common_dep, hip_dep, hipfile_dep, taskflow_proj,
                          file_utils_interface],
         include_directories: [nixl_inc_dirs, utils_inc_dirs],
@@ -57,10 +57,10 @@ if 'HIPFILE_AIS_MT' in static_plugins
         cpp_args: compile_flags,
         name_prefix: 'libplugin_')
 else
-    hipfile_ais_mt_backend_lib = shared_library('HIPFILE_AIS_MT',
-        'hipfile_ais_mt_utils.cpp', 'hipfile_ais_mt_utils.h',
-        'hipfile_ais_mt_backend.cpp', 'hipfile_ais_mt_backend.h',
-        'hipfile_ais_mt_plugin.cpp',
+    ais_mt_backend_lib = shared_library('AIS_MT',
+        'ais_mt_utils.cpp', 'ais_mt_utils.h',
+        'ais_mt_backend.cpp', 'ais_mt_backend.h',
+        'ais_mt_plugin.cpp',
         dependencies: [nixl_infra, nixl_common_dep, hip_dep, hipfile_dep, taskflow_proj,
                          file_utils_interface],
         include_directories: [nixl_inc_dirs, utils_inc_dirs],
@@ -71,12 +71,12 @@ else
         install_rpath: '$ORIGIN/..')
     if get_option('buildtype') == 'debug'
         run_command('sh', '-c',
-            'echo "HIPFILE_AIS_MT=' + hipfile_ais_mt_backend_lib.full_path() +
+            'echo "AIS_MT=' + ais_mt_backend_lib.full_path() +
             '" >> ' + plugin_build_dir + '/pluginlist',
             check: true
         )
     endif
 endif
 
-hipfile_ais_mt_backend_interface = declare_dependency(
-    link_with: hipfile_ais_mt_backend_lib)
+ais_mt_backend_interface = declare_dependency(
+    link_with: ais_mt_backend_lib)

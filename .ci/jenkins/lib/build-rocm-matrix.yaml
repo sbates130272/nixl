@@ -45,11 +45,11 @@ steps:
       meson setup build-rocm \
         -Dwheel_variant=rocm \
         -Ducx_path=/opt/rocnixl-ucx \
-        -Dhipfile_ais_path=/opt/rocm \
+        -Drocm_ais_path=/opt/rocm \
         -Ddisable_gds_backend=true \
         --prefix=${NIXL_INSTALL_DIR}
       meson compile -C build-rocm
-      test -f build-rocm/src/plugins/hipfile_ais_mt/libplugin_HIPFILE_AIS_MT.so
+      test -f build-rocm/src/plugins/ais_mt/libplugin_AIS_MT.so
 
   - name: Test CPP (non-GPU subset)
     parallel: false

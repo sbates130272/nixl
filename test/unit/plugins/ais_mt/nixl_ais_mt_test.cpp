@@ -33,12 +33,16 @@
 #include "common/nixl_time.h"
 #include "path_mode_common.h"
 
-static const char *DEFAULT_HIPFILE_TEST_NVME = "/dev/disk/by-id/nvme-MTR_SLC_16GB_0400000E3CBC";
+static const char *DEFAULT_ROCM_AIS_TEST_NVME = "/dev/disk/by-id/nvme-MTR_SLC_16GB_0400000E3CBC";
 
 static const char *
-getHipfileTestNvmePath() {
-    const char *env = std::getenv("NIXL_HIPFILE_TEST_NVME");
-    return (env != nullptr && env[0] != '\0') ? env : DEFAULT_HIPFILE_TEST_NVME;
+getRocmAisTestNvmePath() {
+    const char *env = std::getenv("NIXL_ROCM_AIS_TEST_NVME");
+    if (env != nullptr && env[0] != '\0') {
+        return env;
+    }
+    env = std::getenv("NIXL_HIPFILE_TEST_NVME");
+    return (env != nullptr && env[0] != '\0') ? env : DEFAULT_ROCM_AIS_TEST_NVME;
 }
 
 #define DEFAULT_NUM_TRANSFERS 250
@@ -227,13 +231,13 @@ format_duration(nixlTime::us_t us) {
 
 static int
 runPathModeSmoke() {
-    if (access(getHipfileTestNvmePath(), F_OK) != 0) {
-        std::cout << "SKIP: Microsemi test NVMe not present: " << getHipfileTestNvmePath()
+    if (access(getRocmAisTestNvmePath(), F_OK) != 0) {
+        std::cout << "SKIP: Microsemi test NVMe not present: " << getRocmAisTestNvmePath()
                   << std::endl;
         return 0;
     }
     return nixl_test::runPathModeSmoke(
-        "HIPFILEAISMTPathModeSmoke", "HIPFILE_AIS_MT", getHipfileTestNvmePath(), 4096);
+        "AIS_MTPathModeSmoke", "AIS_MT", getRocmAisTestNvmePath(), 4096);
 }
 
 int
@@ -380,14 +384,14 @@ main(int argc, char *argv[]) {
     nixlBlobDesc *vram_buf = use_vram ? new nixlBlobDesc[num_transfers] : NULL;
     nixlBlobDesc *dram_buf = use_dram ? new nixlBlobDesc[num_transfers] : NULL;
     nixlBlobDesc *ftrans = new nixlBlobDesc[num_transfers];
-    nixlBackendH *hipfile_ais_mt;
-    nixl_reg_dlist_t vram_for_hipfile_ais_mt(VRAM_SEG);
-    nixl_reg_dlist_t dram_for_hipfile_ais_mt(DRAM_SEG);
-    nixl_reg_dlist_t file_for_hipfile_ais_mt(FILE_SEG);
+    nixlBackendH *ais_mt;
+    nixl_reg_dlist_t vram_for_ais_mt(VRAM_SEG);
+    nixl_reg_dlist_t dram_for_ais_mt(DRAM_SEG);
+    nixl_reg_dlist_t file_for_ais_mt(FILE_SEG);
     std::string name;
 
     std::cout << "\n============================================================" << std::endl;
-    std::cout << "                 NIXL STORAGE TEST STARTING (HIPFILE_AIS_MT PLUGIN)   "
+    std::cout << "                 NIXL STORAGE TEST STARTING (AIS_MT PLUGIN)   "
               << std::endl;
     std::cout << "============================================================" << std::endl;
     std::cout << "Configuration:" << std::endl;
@@ -413,13 +417,13 @@ main(int argc, char *argv[]) {
     std::cout << std::endl;
     std::cout << "============================================================\n" << std::endl;
 
-    nixlAgent agent("HIPFILEAISMTTester", cfg);
+    nixlAgent agent("AisMtTester", cfg);
 
     params["thread_count"] = std::to_string(num_threads);
 
-    ret = agent.createBackend("HIPFILE_AIS_MT", params, hipfile_ais_mt);
-    if (ret != NIXL_SUCCESS || hipfile_ais_mt == NULL) {
-        std::cerr << "Error creating HIPFILE_AIS_MT backend: "
+    ret = agent.createBackend("AIS_MT", params, ais_mt);
+    if (ret != NIXL_SUCCESS || ais_mt == NULL) {
+        std::cerr << "Error creating AIS_MT backend: "
                   << (ret != NIXL_SUCCESS ? "Failed to create backend" : "Backend handle is NULL")
                   << std::endl;
         goto cleanup;
@@ -468,33 +472,33 @@ main(int argc, char *argv[]) {
             vram_buf[i].addr = (uintptr_t)(vram_addr[i]);
             vram_buf[i].len = transfer_size;
             vram_buf[i].devId = devId;
-            vram_for_hipfile_ais_mt.addDesc(vram_buf[i]);
+            vram_for_ais_mt.addDesc(vram_buf[i]);
         }
 
         if (use_dram) {
             dram_buf[i].addr = (uintptr_t)(dram_addr[i]);
             dram_buf[i].len = transfer_size;
             dram_buf[i].devId = devId;
-            dram_for_hipfile_ais_mt.addDesc(dram_buf[i]);
+            dram_for_ais_mt.addDesc(dram_buf[i]);
         }
 
         ftrans[i].addr = 0;
         ftrans[i].len = transfer_size;
         ftrans[i].devId = fd[i];
-        file_for_hipfile_ais_mt.addDesc(ftrans[i]);
+        file_for_ais_mt.addDesc(ftrans[i]);
 
         printProgress(float(i + 1) / num_transfers);
     }
 
     std::cout << "\n=== Registering memory ===" << std::endl;
-    ret = agent.registerMem(file_for_hipfile_ais_mt);
+    ret = agent.registerMem(file_for_ais_mt);
     if (ret != NIXL_SUCCESS) {
         std::cerr << "Failed to register file memory\n";
         goto cleanup;
     }
 
     if (use_vram) {
-        ret = agent.registerMem(vram_for_hipfile_ais_mt);
+        ret = agent.registerMem(vram_for_ais_mt);
         if (ret != NIXL_SUCCESS) {
             std::cerr << "Failed to register VRAM memory\n";
             goto cleanup;
@@ -502,7 +506,7 @@ main(int argc, char *argv[]) {
     }
 
     if (use_dram) {
-        ret = agent.registerMem(dram_for_hipfile_ais_mt);
+        ret = agent.registerMem(dram_for_ais_mt);
         if (ret != NIXL_SUCCESS) {
             std::cerr << "Failed to register DRAM memory\n";
             goto cleanup;
@@ -510,9 +514,9 @@ main(int argc, char *argv[]) {
     }
 
     {
-        nixl_xfer_dlist_t file_for_hipfile_ais_mt_list = file_for_hipfile_ais_mt.trim();
+        nixl_xfer_dlist_t file_for_ais_mt_list = file_for_ais_mt.trim();
         nixl_xfer_dlist_t src_list =
-            use_dram ? dram_for_hipfile_ais_mt.trim() : vram_for_hipfile_ais_mt.trim();
+            use_dram ? dram_for_ais_mt.trim() : vram_for_ais_mt.trim();
 
         using namespace nixlTime;
 
@@ -544,7 +548,7 @@ main(int argc, char *argv[]) {
             nixl_xfer_dlist_t file_list = file_reg.trim();
 
             ret = agent.createXferReq(
-                NIXL_WRITE, src_list, file_list, "HIPFILEAISMTTester", write_req);
+                NIXL_WRITE, src_list, file_list, "AisMtTester", write_req);
             if (ret != NIXL_SUCCESS) {
                 std::cerr << "Failed to create write transfer request" << std::endl;
                 goto cleanup;
@@ -650,7 +654,7 @@ main(int argc, char *argv[]) {
             nixl_xfer_dlist_t file_list = file_reg.trim();
 
             ret =
-                agent.createXferReq(NIXL_READ, src_list, file_list, "HIPFILEAISMTTester", read_req);
+                agent.createXferReq(NIXL_READ, src_list, file_list, "AisMtTester", read_req);
             if (ret != NIXL_SUCCESS) {
                 std::cerr << "Failed to create read transfer request" << std::endl;
                 goto cleanup;
@@ -760,9 +764,9 @@ success:
     }
     printProgress(1.0);
 
-    agent.deregisterMem(file_for_hipfile_ais_mt);
+    agent.deregisterMem(file_for_ais_mt);
     if (use_vram) {
-        agent.deregisterMem(vram_for_hipfile_ais_mt);
+        agent.deregisterMem(vram_for_ais_mt);
         for (i = 0; i < num_transfers; i++) {
             if (vram_addr[i]) {
                 (void)hipFree(vram_addr[i]);
@@ -772,7 +776,7 @@ success:
         delete[] vram_buf;
     }
     if (use_dram) {
-        agent.deregisterMem(dram_for_hipfile_ais_mt);
+        agent.deregisterMem(dram_for_ais_mt);
         for (i = 0; i < num_transfers; i++) {
             if (dram_addr[i]) {
                 free(dram_addr[i]);

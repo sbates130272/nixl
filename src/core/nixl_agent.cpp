@@ -37,11 +37,11 @@ namespace {
 
 const std::vector<std::vector<std::string>> illegal_plugin_combinations = {
     {"GDS", "GDS_MT"},
-    {"HIPFILE_AIS", "HIPFILE_AIS_MT"},
-    {"GDS", "HIPFILE_AIS"},
-    {"GDS", "HIPFILE_AIS_MT"},
-    {"GDS_MT", "HIPFILE_AIS"},
-    {"GDS_MT", "HIPFILE_AIS_MT"},
+    {"ROCM_AIS", "AIS_MT"},
+    {"GDS", "ROCM_AIS"},
+    {"GDS", "AIS_MT"},
+    {"GDS_MT", "ROCM_AIS"},
+    {"GDS_MT", "AIS_MT"},
 };
 
 } // namespace

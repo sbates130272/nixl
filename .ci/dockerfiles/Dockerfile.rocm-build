@@ -86,12 +86,12 @@ COPY . .
 RUN meson setup build-rocm \
         -Dwheel_variant=rocm \
         -Ducx_path=/opt/rocnixl-ucx \
-        -Dhipfile_ais_path=${ROCM_PATH} \
+        -Drocm_ais_path=${ROCM_PATH} \
         -Ddisable_gds_backend=true \
         --prefix=${NIXL_INSTALL_DIR} \
     && meson compile -C build-rocm \
-    && (test -f build-rocm/src/plugins/hipfile_ais_mt/libplugin_HIPFILE_AIS_MT.so \
-        || test -f build-rocm/src/plugins/hipfile_ais/libplugin_HIPFILE_AIS.so)
+    && (test -f build-rocm/src/plugins/ais_mt/libplugin_AIS_MT.so \
+        || test -f build-rocm/src/plugins/rocm_ais/libplugin_ROCM_AIS.so)
 
 ENTRYPOINT ["/bin/bash", "-c", "exec \"$@\"", "--"]
 CMD ["/bin/bash"]

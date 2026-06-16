@@ -64,7 +64,7 @@ rm -rf build-rocm
 meson setup build-rocm \
 	-Dwheel_variant=rocm \
 	-Ducx_path="${UCX_PREFIX}" \
-	-Dhipfile_ais_path="${HIPFILE_PATH}" \
+	-Drocm_ais_path="${HIPFILE_PATH}" \
 	-Ddisable_gds_backend=true \
 	"--prefix=${NIXL_INSTALL_PREFIX}"
 meson compile -C build-rocm
@@ -81,7 +81,7 @@ export LD_LIBRARY_PATH="${NIXL_INSTALL_PREFIX}/lib/x86_64-linux-gnu:${NIXL_INSTA
 python3 -c "import nixl_rocm; print('nixl_rocm import OK')" 2>/dev/null \
 	|| python3 -c "print('Python bindings optional if meson wheel not installed')"
 
-for plug in HIPFILE_AIS_MT HIPFILE_AIS; do
+for plug in AIS_MT ROCM_AIS; do
 	found="$(find build-rocm -name "libplugin_${plug}.so" 2>/dev/null | head -1 || true)"
 	if [[ -n "${found}" ]]; then
 		echo "PASS: ${found}"

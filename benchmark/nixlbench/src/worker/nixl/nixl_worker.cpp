@@ -185,6 +185,17 @@ xferBenchNixlWorker::xferBenchNixlWorker(const std::vector<std::string> &devices
         std::cout << "GDS_MT backend" << std::endl;
         backend_params["thread_count"] = std::to_string(xferBenchConfig::gds_mt_num_threads);
         std::cout << "GDS MT Num threads: " << xferBenchConfig::gds_mt_num_threads << std::endl;
+    } else if (0 == xferBenchConfig::backend.compare(XFERBENCH_BACKEND_ROCM_AIS)) {
+        std::cout << "ROCM_AIS backend" << std::endl;
+        backend_params["batch_pool_size"] = std::to_string(xferBenchConfig::gds_batch_pool_size);
+        backend_params["batch_limit"] = std::to_string(xferBenchConfig::gds_batch_limit);
+        std::cout << "ROCM_AIS batch pool size: " << xferBenchConfig::gds_batch_pool_size
+                  << std::endl;
+        std::cout << "ROCM_AIS batch limit: " << xferBenchConfig::gds_batch_limit << std::endl;
+    } else if (0 == xferBenchConfig::backend.compare(XFERBENCH_BACKEND_AIS_MT)) {
+        std::cout << "AIS_MT backend" << std::endl;
+        backend_params["thread_count"] = std::to_string(xferBenchConfig::gds_mt_num_threads);
+        std::cout << "AIS_MT Taskflow threads: " << xferBenchConfig::gds_mt_num_threads << std::endl;
     } else if (0 == xferBenchConfig::backend.compare(XFERBENCH_BACKEND_POSIX)) {
         // Set API type parameter for POSIX backend
         if (xferBenchConfig::posix_api_type == XFERBENCH_POSIX_API_AIO) {

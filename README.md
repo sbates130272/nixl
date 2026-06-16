@@ -118,6 +118,8 @@ Some plugins may have additional build requirements, see them here:
 - [Mooncake](src/plugins/mooncake/README.md)
 - [POSIX](src/plugins/posix/README.md)
 - [GDS](src/plugins/cuda_gds/README.md)
+- [ROCM_AIS](src/plugins/rocm_ais/README.md)
+- [AIS_MT](src/plugins/ais_mt/README.md)
 
 ## Getting started
 ### Build & install
@@ -171,17 +173,17 @@ NIXL itself builds vendor-neutrally; CPU-side hardware detection (`hwInfo::numAm
 
 **Plugins on ROCm hosts (CUDA toolchain absent):**
 - `UCX` — primary transport for AMD GPU memory (requires UCX built with `--with-rocm`).
-- `HIPFILE_AIS_MT` — AMD Infinity Storage (hipFile) sync I/O to GPU/host memory and files (requires hipFile + HIP; see `src/plugins/hipfile_ais_mt/README.md`).
-- `HIPFILE_AIS` — hipFile batch I/O (experimental; AMD batch backend still maturing).
+- `AIS_MT` — AMD Infinity Storage (hipFile) sync I/O to GPU/host memory and files (requires hipFile + HIP; see `src/plugins/ais_mt/README.md`).
+- `ROCM_AIS` — hipFile batch I/O (experimental; AMD batch backend still maturing).
 - `POSIX`, `OBJ`, `AZURE_BLOB`, `HF3FS`, `MOONCAKE`, `GUSLI`, `UCCL`, `INFINIA` — vendor-neutral; build unchanged.
 - `GDS` / `GDS_MT`, `GPUNETIO`, `LIBFABRIC` (with `-DHAVE_CUDA`) — skip automatically because their CUDA / cuFile / DOCA dependencies are not found.
 
 **Known gaps (will be addressed in follow-up PRs):**
 - `LIBFABRIC` plugin disabled on ROCm pending header refactor.
-- `HIPFILE_AIS` batch path gated until hipFile batch APIs are supported on the AMD backend.
+- `ROCM_AIS` batch path gated until hipFile batch APIs are supported on the AMD backend.
 - No NVSHMEM-equivalent backend yet (rocSHMEM analog is a candidate for a future plugin).
 
-**hipFile build options:** `-Dhipfile_ais_path=/opt/rocm`, `-Ddisable_hipfile_ais_backend=false`, `-Dwheel_variant=rocm`. See `contrib/rocm/build-nixl-rocm.sh` and `.ci/dockerfiles/Dockerfile.rocm-build`.
+**hipFile build options:** `-Drocm_ais_path=/opt/rocm`, `-Ddisable_rocm_ais_backend=false`, `-Dwheel_variant=rocm`. See `contrib/rocm/build-nixl-rocm.sh` and `.ci/dockerfiles/Dockerfile.rocm-build`.
 
 #### Environment Variables
 

@@ -29,7 +29,7 @@ if enable_plugins_opt != '' and disable_plugins_opt != ''
     error('Cannot specify both enable_plugins and disable_plugins options')
 endif
 
-all_plugins = ['UCX', 'LIBFABRIC', 'POSIX', 'OBJ', 'GDS', 'GDS_MT', 'HIPFILE_AIS', 'HIPFILE_AIS_MT', 'MOONCAKE', 'HF3FS', 'GUSLI', 'GPUNETIO', 'UCCL', 'AZURE_BLOB', 'INFINIA', 'TELEMETRY_DOCA']
+all_plugins = ['UCX', 'LIBFABRIC', 'POSIX', 'OBJ', 'GDS', 'GDS_MT', 'ROCM_AIS', 'AIS_MT', 'MOONCAKE', 'HF3FS', 'GUSLI', 'GPUNETIO', 'UCCL', 'AZURE_BLOB', 'INFINIA', 'TELEMETRY_DOCA']
 
 enabled_plugins = {}
 
@@ -426,8 +426,8 @@ if get_option('disable_gds_backend')
     add_project_arguments('-DDISABLE_GDS_BACKEND', language: 'cpp')
 endif
 
-if get_option('disable_hipfile_ais_backend')
-    add_project_arguments('-DDISABLE_HIPFILE_AIS_BACKEND', language: 'cpp')
+if get_option('disable_rocm_ais_backend')
+    add_project_arguments('-DDISABLE_ROCM_AIS_BACKEND', language: 'cpp')
 endif
 
 # Configure NDEBUG for release builds

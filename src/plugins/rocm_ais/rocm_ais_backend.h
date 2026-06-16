@@ -15,8 +15,8 @@
  * limitations under the License.
  */
 
-#ifndef __HIPFILE_AIS_BACKEND_H
-#define __HIPFILE_AIS_BACKEND_H
+#ifndef __ROCM_AIS_BACKEND_H
+#define __ROCM_AIS_BACKEND_H
 
 #include <nixl.h>
 #include <nixl_types.h>
@@ -26,21 +26,22 @@
 #include <list>
 #include <vector>
 #include <mutex>
-#include "hipfile_ais_utils.h"
+#include <unordered_map>
+#include "rocm_ais_utils.h"
 #include "backend/backend_engine.h"
 
-class nixlHipfileAisMetadata : public nixlBackendMD {
+class nixlRocmAisMetadata : public nixlBackendMD {
 public:
-    hipfileFileHandle handle;
-    hipfileMemBuf buf;
+    rocmAisFileHandle handle;
+    rocmAisMemBuf buf;
     nixl_mem_t type;
 
-    nixlHipfileAisMetadata() : nixlBackendMD(true) {}
+    nixlRocmAisMetadata() : nixlBackendMD(true) {}
 
-    ~nixlHipfileAisMetadata() {}
+    ~nixlRocmAisMetadata() {}
 };
 
-class HipfileTransferRequestH {
+class RocmAisTransferRequestH {
 public:
     void *addr;
     size_t size;
@@ -48,7 +49,7 @@ public:
     hipFileHandle_t fh;
     hipFileOpcode_t op;
 
-    HipfileTransferRequestH() {
+    RocmAisTransferRequestH() {
         addr = nullptr;
         size = 0;
         file_offset = 0;
@@ -56,7 +57,7 @@ public:
         op = hipFileBatchRead;
     }
 
-    HipfileTransferRequestH(void *a,
+    RocmAisTransferRequestH(void *a,
                             size_t s,
                             size_t offset,
                             hipFileHandle_t handle,
@@ -69,17 +70,17 @@ public:
     }
 };
 
-class nixlHipfileAisBackendReqH : public nixlBackendReqH {
+class nixlRocmAisBackendReqH : public nixlBackendReqH {
 public:
-    std::vector<HipfileTransferRequestH> request_list;
-    std::vector<nixlHipfileIOBatch *> batch_io_list;
+    std::vector<RocmAisTransferRequestH> request_list;
+    std::vector<nixlRocmAisIOBatch *> batch_io_list;
     bool needs_prep;
 
-    nixlHipfileAisBackendReqH() {
+    nixlRocmAisBackendReqH() {
         needs_prep = true;
     }
 
-    ~nixlHipfileAisBackendReqH() {
+    ~nixlRocmAisBackendReqH() {
         for (auto *batch : batch_io_list) {
             delete batch;
         }
@@ -87,35 +88,35 @@ public:
     }
 };
 
-class nixlHipfileAisEngine : public nixlBackendEngine {
+class nixlRocmAisEngine : public nixlBackendEngine {
 private:
-    hipfileUtil *hipfile_utils;
-    std::unordered_map<int, hipfileFileHandle> hipfile_file_map;
+    rocmAisUtil *rocm_ais_utils;
+    std::unordered_map<int, rocmAisFileHandle> rocm_ais_file_map;
 
     mutable std::mutex batch_pool_lock;
-    mutable std::list<nixlHipfileIOBatch *> batch_pool;
+    mutable std::list<nixlRocmAisIOBatch *> batch_pool;
     unsigned int batch_pool_size;
     unsigned int batch_limit;
     unsigned int max_request_size;
 
-    nixlHipfileIOBatch *
+    nixlRocmAisIOBatch *
     getBatchFromPool(unsigned int size) const;
     void
-    returnBatchToPool(nixlHipfileIOBatch *batch) const;
+    returnBatchToPool(nixlRocmAisIOBatch *batch) const;
     nixl_status_t
-    createAndSubmitBatch(const std::vector<HipfileTransferRequestH> &requests,
+    createAndSubmitBatch(const std::vector<RocmAisTransferRequestH> &requests,
                          size_t start_idx,
                          size_t batch_size,
-                         std::vector<nixlHipfileIOBatch *> &batch_list) const;
+                         std::vector<nixlRocmAisIOBatch *> &batch_list) const;
     nixl_status_t
     createBatches(const nixl_xfer_op_t &operation,
                   const nixl_meta_dlist_t &local,
                   const nixl_meta_dlist_t &remote,
-                  nixlHipfileAisBackendReqH *handle);
+                  nixlRocmAisBackendReqH *handle);
 
 public:
-    nixlHipfileAisEngine(const nixlBackendInitParams *init_params);
-    ~nixlHipfileAisEngine();
+    nixlRocmAisEngine(const nixlBackendInitParams *init_params);
+    ~nixlRocmAisEngine();
 
     bool
     supportsNotif() const {

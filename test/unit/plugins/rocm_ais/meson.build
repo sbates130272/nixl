@@ -18,12 +18,12 @@ if hip_dep.found() == false
     subdir_done()
 endif
 
-nixl_hipfile_ais_app = executable('nixl_hipfile_ais_test',
-                          'nixl_hipfile_ais_test.cpp',
+nixl_rocm_ais_app = executable('nixl_rocm_ais_test',
+                          'nixl_rocm_ais_test.cpp',
                           dependencies: [nixl_dep, nixl_infra, hip_dep,
                                          nixl_common_dep],
                           include_directories: [nixl_inc_dirs, utils_inc_dirs,
                                                 include_directories('..')],
                           install: true)
 
-test('hipfile_ais_path_mode_smoke', nixl_hipfile_ais_app)
+test('rocm_ais_path_mode_smoke', nixl_rocm_ais_app)

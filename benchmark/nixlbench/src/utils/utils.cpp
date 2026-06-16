@@ -62,7 +62,7 @@ NB_ARG_STRING(runtime_type,
 NB_ARG_STRING(worker_type, XFERBENCH_WORKER_NIXL, "Type of worker [nixl, nvshmem]");
 NB_ARG_STRING(backend,
               XFERBENCH_BACKEND_UCX,
-              "Name of NIXL backend [UCX, GDS, GDS_MT, POSIX, GPUNETIO, Mooncake, HF3FS, OBJ, "
+              "Name of NIXL backend [UCX, GDS, GDS_MT, ROCM_AIS, AIS_MT, POSIX, GPUNETIO, Mooncake, HF3FS, OBJ, "
               "GUSLI, AZURE_BLOB] (only used with nixl worker)");
 NB_ARG_STRING(initiator_seg_type,
               XFERBENCH_SEG_TYPE_DRAM,
@@ -119,7 +119,9 @@ NB_ARG_INT32(gds_batch_pool_size,
              32,
              "Batch pool size for GDS operations (only used with GDS backend)");
 NB_ARG_INT32(gds_batch_limit, 128, "Batch limit for GDS operations (only used with GDS backend)");
-NB_ARG_INT32(gds_mt_num_threads, 1, "Number of threads used by GDS MT plugin");
+NB_ARG_INT32(gds_mt_num_threads,
+             1,
+             "Number of threads used by GDS_MT or AIS_MT (Taskflow worker pool)");
 
 // TODO: We should take rank wise device list as input to extend support
 // <rank>:<device_list>, ...
@@ -392,13 +394,13 @@ xferBenchConfig::loadParams(void) {
             return -1;
 #endif
         }
-        // Load GDS-specific configurations if backend is GDS
-        if (backend == XFERBENCH_BACKEND_GDS) {
+        // Load GDS-specific configurations if backend is GDS or ROCM_AIS (hipFile batch)
+        if (backend == XFERBENCH_BACKEND_GDS || backend == XFERBENCH_BACKEND_ROCM_AIS) {
             gds_batch_pool_size = NB_ARG(gds_batch_pool_size);
             gds_batch_limit = NB_ARG(gds_batch_limit);
         }
 
-        if (backend == XFERBENCH_BACKEND_GDS_MT) {
+        if (backend == XFERBENCH_BACKEND_GDS_MT || backend == XFERBENCH_BACKEND_AIS_MT) {
             gds_mt_num_threads = NB_ARG(gds_mt_num_threads);
         }
 
@@ -679,7 +681,7 @@ xferBenchConfig::printConfig() {
     }
     printOption("Worker type (--worker_type=[nixl,nvshmem])", worker_type);
     if (worker_type == XFERBENCH_WORKER_NIXL) {
-        printOption("Backend (--backend=[UCX,GDS,GDS_MT,POSIX,Mooncake,HF3FS,OBJ,AZURE_BLOB])",
+        printOption("Backend (--backend=[UCX,GDS,GDS_MT,ROCM_AIS,AIS_MT,POSIX,Mooncake,HF3FS,OBJ,AZURE_BLOB])",
                     backend);
         printOption("Enable pt (--enable_pt=[0,1])", std::to_string(enable_pt));
         printOption("Progress threads (--progress_threads=N)", std::to_string(progress_threads));
@@ -694,15 +696,19 @@ xferBenchConfig::printConfig() {
         printOption("Pipeline depth (--pipeline_depth=N)", std::to_string(pipeline_depth));
         printOption("Use hugepages (--use_hugepages=[0,1])", std::to_string(use_hugepages));
 
-        // Print GDS options if backend is GDS
-        if (backend == XFERBENCH_BACKEND_GDS) {
-            printOption("GDS batch pool size (--gds_batch_pool_size=N)",
+        // Print GDS / ROCM_AIS batch options (bench reuses --gds_batch_* for ROCM_AIS)
+        if (backend == XFERBENCH_BACKEND_GDS || backend == XFERBENCH_BACKEND_ROCM_AIS) {
+            const std::string tag =
+                (backend == XFERBENCH_BACKEND_GDS) ? std::string("GDS") : std::string("ROCM_AIS");
+            printOption(tag + " batch pool size (--gds_batch_pool_size=N)",
                         std::to_string(gds_batch_pool_size));
-            printOption("GDS batch limit (--gds_batch_limit=N)", std::to_string(gds_batch_limit));
+            printOption(tag + " batch limit (--gds_batch_limit=N)", std::to_string(gds_batch_limit));
         }
 
-        if (backend == XFERBENCH_BACKEND_GDS_MT) {
-            printOption("GDS MT Number of threads (--gds_mt_num_threads=N)",
+        if (backend == XFERBENCH_BACKEND_GDS_MT || backend == XFERBENCH_BACKEND_AIS_MT) {
+            const std::string tag = (backend == XFERBENCH_BACKEND_GDS_MT) ? std::string("GDS_MT") :
+                                                                       std::string("AIS_MT");
+            printOption(tag + " thread pool (--gds_mt_num_threads=N)",
                         std::to_string(gds_mt_num_threads));
         }
 
@@ -820,6 +826,8 @@ bool
 xferBenchConfig::isStorageBackend() {
     return (XFERBENCH_BACKEND_GDS == xferBenchConfig::backend ||
             XFERBENCH_BACKEND_GDS_MT == xferBenchConfig::backend ||
+            XFERBENCH_BACKEND_ROCM_AIS == xferBenchConfig::backend ||
+            XFERBENCH_BACKEND_AIS_MT == xferBenchConfig::backend ||
             XFERBENCH_BACKEND_HF3FS == xferBenchConfig::backend ||
             XFERBENCH_BACKEND_POSIX == xferBenchConfig::backend ||
             XFERBENCH_BACKEND_OBJ == xferBenchConfig::backend ||

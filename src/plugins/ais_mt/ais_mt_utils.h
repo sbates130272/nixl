@@ -4,50 +4,50 @@
  *
  */
 
-#ifndef __HIPFILE_AIS_MT_UTILS_H
-#define __HIPFILE_AIS_MT_UTILS_H
+#ifndef __AIS_MT_UTILS_H
+#define __AIS_MT_UTILS_H
 
 #include <fcntl.h>
 #include <unistd.h>
 #include <nixl.h>
 #include <hipfile.h>
 
-class hipfileAisMtFileHandle {
+class aisMtFileHandle {
 public:
-    hipfileAisMtFileHandle(int fd);
-    ~hipfileAisMtFileHandle();
+    aisMtFileHandle(int fd);
+    ~aisMtFileHandle();
 
-    hipfileAisMtFileHandle(const hipfileAisMtFileHandle &) = delete;
-    hipfileAisMtFileHandle &
-    operator=(const hipfileAisMtFileHandle &) = delete;
-    hipfileAisMtFileHandle(hipfileAisMtFileHandle &&) = delete;
-    hipfileAisMtFileHandle &
-    operator=(hipfileAisMtFileHandle &&) = delete;
+    aisMtFileHandle(const aisMtFileHandle &) = delete;
+    aisMtFileHandle &
+    operator=(const aisMtFileHandle &) = delete;
+    aisMtFileHandle(aisMtFileHandle &&) = delete;
+    aisMtFileHandle &
+    operator=(aisMtFileHandle &&) = delete;
 
     int fd{-1};
     hipFileHandle_t hip_fhandle{nullptr};
 };
 
-class hipfileAisMtMemBuf {
+class aisMtMemBuf {
 public:
-    hipfileAisMtMemBuf(void *ptr, size_t sz, int flags = 0);
-    ~hipfileAisMtMemBuf();
+    aisMtMemBuf(void *ptr, size_t sz, int flags = 0);
+    ~aisMtMemBuf();
 
-    hipfileAisMtMemBuf(const hipfileAisMtMemBuf &) = delete;
-    hipfileAisMtMemBuf &
-    operator=(const hipfileAisMtMemBuf &) = delete;
-    hipfileAisMtMemBuf(hipfileAisMtMemBuf &&) = delete;
-    hipfileAisMtMemBuf &
-    operator=(hipfileAisMtMemBuf &&) = delete;
+    aisMtMemBuf(const aisMtMemBuf &) = delete;
+    aisMtMemBuf &
+    operator=(const aisMtMemBuf &) = delete;
+    aisMtMemBuf(aisMtMemBuf &&) = delete;
+    aisMtMemBuf &
+    operator=(aisMtMemBuf &&) = delete;
 
 private:
     void *base_{nullptr};
     bool registered_{false};
 };
 
-class hipfileAisMtUtil {
+class aisMtUtil {
 public:
-    hipfileAisMtUtil();
-    ~hipfileAisMtUtil();
+    aisMtUtil();
+    ~aisMtUtil();
 };
 #endif

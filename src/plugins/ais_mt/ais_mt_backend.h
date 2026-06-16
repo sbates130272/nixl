@@ -4,8 +4,8 @@
  *
  */
 
-#ifndef __HIPFILE_AIS_MT_BACKEND_H
-#define __HIPFILE_AIS_MT_BACKEND_H
+#ifndef __AIS_MT_BACKEND_H
+#define __AIS_MT_BACKEND_H
 
 #include <nixl.h>
 #include <nixl_types.h>
@@ -14,17 +14,17 @@
 #include <string>
 #include <unordered_map>
 #include <hipfile.h>
-#include "hipfile_ais_mt_utils.h"
+#include "ais_mt_utils.h"
 #include "taskflow/core/executor.hpp"
 
-class nixlHipfileAisMtEngine : public nixlBackendEngine {
+class nixlAisMtEngine : public nixlBackendEngine {
 public:
-    nixlHipfileAisMtEngine(const nixlBackendInitParams *init_params);
-    ~nixlHipfileAisMtEngine() = default;
+    nixlAisMtEngine(const nixlBackendInitParams *init_params);
+    ~nixlAisMtEngine() = default;
 
-    nixlHipfileAisMtEngine(const nixlHipfileAisMtEngine &) = delete;
-    nixlHipfileAisMtEngine &
-    operator=(const nixlHipfileAisMtEngine &) = delete;
+    nixlAisMtEngine(const nixlAisMtEngine &) = delete;
+    nixlAisMtEngine &
+    operator=(const nixlAisMtEngine &) = delete;
 
     bool
     supportsNotif() const override {
@@ -97,8 +97,8 @@ public:
     queryMem(const nixl_reg_dlist_t &descs, std::vector<nixl_query_resp_t> &resp) const override;
 
 private:
-    hipfileAisMtUtil hipfile_ais_mt_utils_;
-    std::unordered_map<int, std::weak_ptr<hipfileAisMtFileHandle>> hipfile_ais_mt_file_map_;
+    aisMtUtil ais_mt_utils_;
+    std::unordered_map<int, std::weak_ptr<aisMtFileHandle>> ais_mt_file_map_;
     size_t thread_count_;
     std::unique_ptr<tf::Executor> executor_;
 };

@@ -14,15 +14,15 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-#ifndef __HIPFILE_AIS_UTILS_H
-#define __HIPFILE_AIS_UTILS_H
+#ifndef __ROCM_AIS_UTILS_H
+#define __ROCM_AIS_UTILS_H
 
 #include <fcntl.h>
 #include <unistd.h>
 #include <nixl.h>
 #include <hipfile.h>
 
-class hipfileFileHandle {
+class rocmAisFileHandle {
 public:
     int fd;
     size_t size;
@@ -30,16 +30,16 @@ public:
     hipFileHandle_t hip_fhandle;
 };
 
-class hipfileMemBuf {
+class rocmAisMemBuf {
 public:
     void *base;
     size_t size;
 };
 
-class nixlHipfileIOBatch {
+class nixlRocmAisIOBatch {
 public:
-    nixlHipfileIOBatch(unsigned int size);
-    ~nixlHipfileIOBatch();
+    nixlRocmAisIOBatch(unsigned int size);
+    ~nixlRocmAisIOBatch();
 
     nixl_status_t
     addToBatch(hipFileHandle_t fh,
@@ -68,18 +68,18 @@ private:
     nixl_status_t current_status = NIXL_ERR_NOT_POSTED;
 };
 
-class hipfileUtil {
+class rocmAisUtil {
 public:
-    hipfileUtil() {}
+    rocmAisUtil() {}
 
-    ~hipfileUtil() {}
+    ~rocmAisUtil() {}
 
     nixl_status_t
-    registerFileHandle(int fd, size_t size, std::string metaInfo, hipfileFileHandle &handle);
+    registerFileHandle(int fd, size_t size, std::string metaInfo, rocmAisFileHandle &handle);
     nixl_status_t
     registerBufHandle(void *ptr, size_t size, int flags);
     void
-    deregisterFileHandle(hipfileFileHandle &handle);
+    deregisterFileHandle(rocmAisFileHandle &handle);
     nixl_status_t
     deregisterBufHandle(void *ptr);
     nixl_status_t

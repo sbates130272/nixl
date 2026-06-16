@@ -14,14 +14,14 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-#include "hipfile_ais_utils.h"
+#include "rocm_ais_utils.h"
 #include "common/nixl_log.h"
 
 nixl_status_t
-hipfileUtil::registerFileHandle(int fd,
+rocmAisUtil::registerFileHandle(int fd,
                                 size_t size,
                                 std::string metaInfo,
-                                hipfileFileHandle &hip_handle) {
+                                rocmAisFileHandle &hip_handle) {
     hipFileError_t status;
     hipFileDescr_t descr = {};
     hipFileHandle_t handle;
@@ -44,7 +44,7 @@ hipfileUtil::registerFileHandle(int fd,
 }
 
 nixl_status_t
-hipfileUtil::registerBufHandle(void *ptr, size_t size, int flags) {
+rocmAisUtil::registerBufHandle(void *ptr, size_t size, int flags) {
     hipFileError_t status;
 
     status = hipFileBufRegister(ptr, size, flags);
@@ -55,7 +55,7 @@ hipfileUtil::registerBufHandle(void *ptr, size_t size, int flags) {
 }
 
 nixl_status_t
-hipfileUtil::openHipFileDriver() {
+rocmAisUtil::openHipFileDriver() {
     hipFileError_t err;
 
     err = hipFileDriverOpen();
@@ -68,17 +68,17 @@ hipfileUtil::openHipFileDriver() {
 }
 
 void
-hipfileUtil::closeHipFileDriver() {
+rocmAisUtil::closeHipFileDriver() {
     (void)hipFileDriverClose();
 }
 
 void
-hipfileUtil::deregisterFileHandle(hipfileFileHandle &handle) {
+rocmAisUtil::deregisterFileHandle(rocmAisFileHandle &handle) {
     (void)hipFileHandleDeregister(handle.hip_fhandle);
 }
 
 nixl_status_t
-hipfileUtil::deregisterBufHandle(void *ptr) {
+rocmAisUtil::deregisterBufHandle(void *ptr) {
     hipFileError_t status;
 
     status = hipFileBufDeregister(ptr);
@@ -89,7 +89,7 @@ hipfileUtil::deregisterBufHandle(void *ptr) {
     return NIXL_SUCCESS;
 }
 
-nixlHipfileIOBatch::nixlHipfileIOBatch(unsigned int size) : max_reqs(size) {
+nixlRocmAisIOBatch::nixlRocmAisIOBatch(unsigned int size) : max_reqs(size) {
     hipFileError_t err;
 
     io_batch_events = new hipFileIOEvents_t[size];
@@ -102,7 +102,7 @@ nixlHipfileIOBatch::nixlHipfileIOBatch(unsigned int size) : max_reqs(size) {
     }
 }
 
-nixlHipfileIOBatch::~nixlHipfileIOBatch() {
+nixlRocmAisIOBatch::~nixlRocmAisIOBatch() {
     if (current_status == NIXL_SUCCESS || current_status == NIXL_ERR_NOT_POSTED) {
         delete[] io_batch_events;
         delete[] io_batch_params;
@@ -113,7 +113,7 @@ nixlHipfileIOBatch::~nixlHipfileIOBatch() {
 }
 
 nixl_status_t
-nixlHipfileIOBatch::addToBatch(hipFileHandle_t fh,
+nixlRocmAisIOBatch::addToBatch(hipFileHandle_t fh,
                                void *buffer,
                                size_t size,
                                size_t file_offset,
@@ -140,7 +140,7 @@ nixlHipfileIOBatch::addToBatch(hipFileHandle_t fh,
 }
 
 nixl_status_t
-nixlHipfileIOBatch::cancelBatch() {
+nixlRocmAisIOBatch::cancelBatch() {
     hipFileError_t err;
 
     err = hipFileBatchIOCancel(batch_handle);
@@ -152,7 +152,7 @@ nixlHipfileIOBatch::cancelBatch() {
 }
 
 nixl_status_t
-nixlHipfileIOBatch::submitBatch(int flags) {
+nixlRocmAisIOBatch::submitBatch(int flags) {
     hipFileError_t err;
 
     err = hipFileBatchIOSubmit(batch_handle, batch_size, io_batch_params, flags);
@@ -164,7 +164,7 @@ nixlHipfileIOBatch::submitBatch(int flags) {
 }
 
 nixl_status_t
-nixlHipfileIOBatch::checkStatus() {
+nixlRocmAisIOBatch::checkStatus() {
     hipFileError_t errBatch;
     unsigned int nr = batch_size;
 
@@ -188,7 +188,7 @@ nixlHipfileIOBatch::checkStatus() {
 }
 
 void
-nixlHipfileIOBatch::reset() {
+nixlRocmAisIOBatch::reset() {
     entries_completed = 0;
     batch_size = 0;
     current_status = NIXL_ERR_NOT_POSTED;

@@ -62,30 +62,30 @@ if enabled_plugins.get('GDS_MT')
     endif
 endif
 
-disable_hipfile_ais_backend = get_option('disable_hipfile_ais_backend')
-if enabled_plugins.get('HIPFILE_AIS')
-    if (disable_hipfile_ais_backend or not hip_dep.found()) and is_explicit_enable
-        if disable_hipfile_ais_backend
-            error('HIPFILE_AIS plugin tests requested but hipFile AIS backend is disabled')
+disable_rocm_ais_backend = get_option('disable_rocm_ais_backend')
+if enabled_plugins.get('ROCM_AIS')
+    if (disable_rocm_ais_backend or not hip_dep.found()) and is_explicit_enable
+        if disable_rocm_ais_backend
+            error('ROCM_AIS plugin tests requested but ROCm AIS backends are disabled')
         else
-            error('HIPFILE_AIS plugin tests requested but HIP/ROCm dependency not found')
+            error('ROCM_AIS plugin tests requested but HIP/ROCm dependency not found')
         endif
-    elif not disable_hipfile_ais_backend and hip_dep.found()
-        subdir('hipfile_ais')
+    elif not disable_rocm_ais_backend and hip_dep.found()
+        subdir('rocm_ais')
     endif
 endif
 
-if enabled_plugins.get('HIPFILE_AIS_MT')
-    if (disable_hipfile_ais_backend or not hip_dep.found() or not taskflow_proj.found()) and is_explicit_enable
-        if disable_hipfile_ais_backend
-            error('HIPFILE_AIS_MT plugin tests requested but hipFile AIS backend is disabled')
+if enabled_plugins.get('AIS_MT')
+    if (disable_rocm_ais_backend or not hip_dep.found() or not taskflow_proj.found()) and is_explicit_enable
+        if disable_rocm_ais_backend
+            error('AIS_MT plugin tests requested but ROCm AIS backends are disabled')
         elif not hip_dep.found()
-            error('HIPFILE_AIS_MT plugin tests requested but HIP/ROCm dependency not found')
+            error('AIS_MT plugin tests requested but HIP/ROCm dependency not found')
         else
-            error('HIPFILE_AIS_MT plugin tests requested but Taskflow dependency not found')
+            error('AIS_MT plugin tests requested but Taskflow dependency not found')
         endif
-    elif not disable_hipfile_ais_backend and hip_dep.found() and taskflow_proj.found()
-        subdir('hipfile_ais_mt')
+    elif not disable_rocm_ais_backend and hip_dep.found() and taskflow_proj.found()
+        subdir('ais_mt')
     endif
 endif
 

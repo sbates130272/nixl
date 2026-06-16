@@ -16,21 +16,21 @@
  */
 
 #include "backend/backend_plugin.h"
-#include "hipfile_ais_backend.h"
+#include "rocm_ais_backend.h"
 
-using hipfile_ais_plugin_t = nixlBackendPluginCreator<nixlHipfileAisEngine>;
+using rocm_ais_plugin_t = nixlBackendPluginCreator<nixlRocmAisEngine>;
 
-#ifdef STATIC_PLUGIN_HIPFILE_AIS
+#ifdef STATIC_PLUGIN_ROCM_AIS
 nixlBackendPlugin *
-createStaticHIPFILE_AISPlugin() {
-    return hipfile_ais_plugin_t::create(
-        NIXL_PLUGIN_API_VERSION, "HIPFILE_AIS", "0.1.0", {}, {DRAM_SEG, VRAM_SEG, FILE_SEG});
+createStaticROCM_AISPlugin() {
+    return rocm_ais_plugin_t::create(
+        NIXL_PLUGIN_API_VERSION, "ROCM_AIS", "0.1.0", {}, {DRAM_SEG, VRAM_SEG, FILE_SEG});
 }
 #else
 extern "C" NIXL_PLUGIN_EXPORT nixlBackendPlugin *
 nixl_plugin_init() {
-    return hipfile_ais_plugin_t::create(
-        NIXL_PLUGIN_API_VERSION, "HIPFILE_AIS", "0.1.0", {}, {DRAM_SEG, VRAM_SEG, FILE_SEG});
+    return rocm_ais_plugin_t::create(
+        NIXL_PLUGIN_API_VERSION, "ROCM_AIS", "0.1.0", {}, {DRAM_SEG, VRAM_SEG, FILE_SEG});
 }
 
 extern "C" NIXL_PLUGIN_EXPORT void

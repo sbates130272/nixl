@@ -33,17 +33,27 @@
 #include "common/nixl_time.h"
 #include "path_mode_common.h"
 
-static const char *DEFAULT_HIPFILE_TEST_NVME = "/dev/disk/by-id/nvme-MTR_SLC_16GB_0400000E3CBC";
+static const char *DEFAULT_ROCM_AIS_TEST_NVME = "/dev/disk/by-id/nvme-MTR_SLC_16GB_0400000E3CBC";
 
 static const char *
-getHipfileTestNvmePath() {
-    const char *env = std::getenv("NIXL_HIPFILE_TEST_NVME");
-    return (env != nullptr && env[0] != '\0') ? env : DEFAULT_HIPFILE_TEST_NVME;
+getRocmAisTestNvmePath() {
+    const char *env = std::getenv("NIXL_ROCM_AIS_TEST_NVME");
+    if (env != nullptr && env[0] != '\0') {
+        return env;
+    }
+    env = std::getenv("NIXL_HIPFILE_TEST_NVME");
+    return (env != nullptr && env[0] != '\0') ? env : DEFAULT_ROCM_AIS_TEST_NVME;
 }
 
 static bool
-hipfileBatchTestsEnabled() {
-    const char *v = std::getenv("NIXL_HIPFILE_BATCH_TEST");
+rocmAisBatchTestsEnabled() {
+    const char *v = std::getenv("NIXL_ROCM_AIS_BATCH_TEST");
+    if (v != nullptr && v[0] != '\0') {
+        if (std::strcmp(v, "1") == 0 || strcasecmp(v, "true") == 0 || strcasecmp(v, "yes") == 0) {
+            return true;
+        }
+    }
+    v = std::getenv("NIXL_HIPFILE_BATCH_TEST");
     if (v == nullptr || v[0] == '\0') {
         return false;
     }
@@ -52,13 +62,13 @@ hipfileBatchTestsEnabled() {
 
 static int
 runPathModeSmoke() {
-    if (access(getHipfileTestNvmePath(), F_OK) != 0) {
-        std::cout << "SKIP: Microsemi test NVMe not present: " << getHipfileTestNvmePath()
+    if (access(getRocmAisTestNvmePath(), F_OK) != 0) {
+        std::cout << "SKIP: Microsemi test NVMe not present: " << getRocmAisTestNvmePath()
                   << std::endl;
         return 0;
     }
     return nixl_test::runPathModeSmoke(
-        "HIPFILEAISPathModeSmoke", "HIPFILE_AIS", getHipfileTestNvmePath(), 4096);
+        "ROCM_AISPathModeSmoke", "ROCM_AIS", getRocmAisTestNvmePath(), 4096);
 }
 
 #define DEFAULT_NUM_TRANSFERS 250
@@ -232,7 +242,7 @@ format_duration(nixlTime::us_t us) {
 
 int
 main(int argc, char *argv[]) {
-    if (!hipfileBatchTestsEnabled()) {
+    if (!rocmAisBatchTestsEnabled()) {
         return runPathModeSmoke();
     }
 
@@ -373,14 +383,14 @@ main(int argc, char *argv[]) {
     nixlBlobDesc *vram_buf = use_vram ? new nixlBlobDesc[num_transfers] : NULL;
     nixlBlobDesc *dram_buf = use_dram ? new nixlBlobDesc[num_transfers] : NULL;
     nixlBlobDesc *ftrans = new nixlBlobDesc[num_transfers];
-    nixlBackendH *hipfile_ais;
+    nixlBackendH *rocm_ais;
     nixl_reg_dlist_t vram_for_gds(VRAM_SEG);
     nixl_reg_dlist_t dram_for_gds(DRAM_SEG);
     nixl_reg_dlist_t file_for_gds(FILE_SEG);
     std::string name;
 
     std::cout << "\n============================================================" << std::endl;
-    std::cout << "       NIXL STORAGE TEST (HIPFILE_AIS PLUGIN)               " << std::endl;
+    std::cout << "       NIXL STORAGE TEST (ROCM_AIS PLUGIN)               " << std::endl;
     std::cout << "============================================================" << std::endl;
     std::cout << "Configuration:" << std::endl;
     std::cout << "- Mode: " << (use_dram ? "DRAM" : "VRAM") << std::endl;
@@ -406,15 +416,15 @@ main(int argc, char *argv[]) {
     std::cout << std::endl;
     std::cout << "============================================================\n" << std::endl;
 
-    nixlAgent agent("HipFileAISTester", cfg);
+    nixlAgent agent("RocmAisTester", cfg);
 
     params["batch_pool_size"] = std::to_string(pool_size);
     params["batch_limit"] = std::to_string(batch_limit);
     params["max_request_size"] = std::to_string(max_request_size);
 
-    ret = agent.createBackend("HIPFILE_AIS", params, hipfile_ais);
-    if (ret != NIXL_SUCCESS || hipfile_ais == NULL) {
-        std::cerr << "Error creating HIPFILE_AIS backend: "
+    ret = agent.createBackend("ROCM_AIS", params, rocm_ais);
+    if (ret != NIXL_SUCCESS || rocm_ais == NULL) {
+        std::cerr << "Error creating ROCM_AIS backend: "
                   << (ret != NIXL_SUCCESS ? "Failed" : "NULL handle") << std::endl;
         goto cleanup;
     }
@@ -534,7 +544,7 @@ main(int argc, char *argv[]) {
             nixl_xfer_dlist_t file_xfer = file_reg.trim();
 
             ret =
-                agent.createXferReq(NIXL_WRITE, src_xfer, file_xfer, "HipFileAISTester", write_req);
+                agent.createXferReq(NIXL_WRITE, src_xfer, file_xfer, "RocmAisTester", write_req);
             if (ret != NIXL_SUCCESS) {
                 std::cerr << "Failed to create write transfer request" << std::endl;
                 goto cleanup;
@@ -629,7 +639,7 @@ main(int argc, char *argv[]) {
             nixl_xfer_dlist_t src_xfer = src_reg.trim();
             nixl_xfer_dlist_t file_xfer = file_reg.trim();
 
-            ret = agent.createXferReq(NIXL_READ, src_xfer, file_xfer, "HipFileAISTester", read_req);
+            ret = agent.createXferReq(NIXL_READ, src_xfer, file_xfer, "RocmAisTester", read_req);
             if (ret != NIXL_SUCCESS) {
                 std::cerr << "Failed to create read transfer request" << std::endl;
                 goto cleanup;

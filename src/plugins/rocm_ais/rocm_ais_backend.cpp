@@ -16,8 +16,8 @@
  */
 #include <cassert>
 #include <hipfile.h>
-#include "hipfile_ais_backend.h"
-#include "hipfile_ais_utils.h"
+#include "rocm_ais_backend.h"
+#include "rocm_ais_utils.h"
 #include "common/nixl_log.h"
 #include "file/file_utils.h"
 #include <unordered_map>
@@ -28,9 +28,9 @@
 #define DEFAULT_MAX_REQUEST_SIZE (16 * 1024 * 1024) // 16MB
 #define DEFAULT_BATCH_POOL_SIZE 16
 
-nixlHipfileAisEngine::nixlHipfileAisEngine(const nixlBackendInitParams *init_params)
+nixlRocmAisEngine::nixlRocmAisEngine(const nixlBackendInitParams *init_params)
     : nixlBackendEngine(init_params) {
-    hipfile_utils = new hipfileUtil();
+    rocm_ais_utils = new rocmAisUtil();
 
     batch_pool_size = DEFAULT_BATCH_POOL_SIZE;
     batch_limit = DEFAULT_BATCH_LIMIT;
@@ -73,38 +73,38 @@ nixlHipfileAisEngine::nixlHipfileAisEngine(const nixlBackendInitParams *init_par
     }
 
     this->initErr = false;
-    if (hipfile_utils->openHipFileDriver() == NIXL_ERR_BACKEND) {
+    if (rocm_ais_utils->openHipFileDriver() == NIXL_ERR_BACKEND) {
         this->initErr = true;
         return;
     }
 
     for (unsigned int i = 0; i < batch_pool_size; i++) {
-        batch_pool.push_back(new nixlHipfileIOBatch(batch_limit));
+        batch_pool.push_back(new nixlRocmAisIOBatch(batch_limit));
     }
 }
 
 nixl_status_t
-nixlHipfileAisEngine::registerMem(const nixlBlobDesc &mem,
+nixlRocmAisEngine::registerMem(const nixlBlobDesc &mem,
                                   const nixl_mem_t &nixl_mem,
                                   nixlBackendMD *&out) {
     nixl_status_t status = NIXL_SUCCESS;
-    nixlHipfileAisMetadata *md = new nixlHipfileAisMetadata();
+    nixlRocmAisMetadata *md = new nixlRocmAisMetadata();
     md->type = nixl_mem;
     hipError_t error_id;
 
     switch (nixl_mem) {
     case FILE_SEG: {
-        auto it = hipfile_file_map.find(mem.devId);
-        if (it != hipfile_file_map.end()) {
+        auto it = rocm_ais_file_map.find(mem.devId);
+        if (it != rocm_ais_file_map.end()) {
             md->handle = it->second;
             md->handle.size = mem.len;
             md->handle.metadata = mem.metaInfo;
             break;
         }
 
-        status = hipfile_utils->registerFileHandle(mem.devId, mem.len, mem.metaInfo, md->handle);
+        status = rocm_ais_utils->registerFileHandle(mem.devId, mem.len, mem.metaInfo, md->handle);
         if (status == NIXL_SUCCESS) {
-            hipfile_file_map[mem.devId] = md->handle;
+            rocm_ais_file_map[mem.devId] = md->handle;
         }
         break;
     }
@@ -117,7 +117,7 @@ nixlHipfileAisEngine::registerMem(const nixlBlobDesc &mem,
             delete md;
             return NIXL_ERR_BACKEND;
         }
-        status = hipfile_utils->registerBufHandle((void *)mem.addr, mem.len, 0);
+        status = rocm_ais_utils->registerBufHandle((void *)mem.addr, mem.len, 0);
         if (status == NIXL_SUCCESS) {
             md->buf.base = (void *)mem.addr;
             md->buf.size = mem.len;
@@ -126,7 +126,7 @@ nixlHipfileAisEngine::registerMem(const nixlBlobDesc &mem,
     }
 
     case DRAM_SEG: {
-        status = hipfile_utils->registerBufHandle((void *)mem.addr, mem.len, 0);
+        status = rocm_ais_utils->registerBufHandle((void *)mem.addr, mem.len, 0);
         if (status == NIXL_SUCCESS) {
             md->buf.base = (void *)mem.addr;
             md->buf.size = mem.len;
@@ -149,26 +149,26 @@ nixlHipfileAisEngine::registerMem(const nixlBlobDesc &mem,
 }
 
 nixl_status_t
-nixlHipfileAisEngine::deregisterMem(nixlBackendMD *meta) {
-    nixlHipfileAisMetadata *md = (nixlHipfileAisMetadata *)meta;
+nixlRocmAisEngine::deregisterMem(nixlBackendMD *meta) {
+    nixlRocmAisMetadata *md = (nixlRocmAisMetadata *)meta;
     if (md->type == FILE_SEG) {
-        hipfile_utils->deregisterFileHandle(md->handle);
-        hipfile_file_map.erase(md->handle.fd);
+        rocm_ais_utils->deregisterFileHandle(md->handle);
+        rocm_ais_file_map.erase(md->handle.fd);
     } else {
-        hipfile_utils->deregisterBufHandle(md->buf.base);
+        rocm_ais_utils->deregisterBufHandle(md->buf.base);
     }
     delete md;
     return NIXL_SUCCESS;
 }
 
 nixl_status_t
-nixlHipfileAisEngine::prepXfer(const nixl_xfer_op_t &operation,
+nixlRocmAisEngine::prepXfer(const nixl_xfer_op_t &operation,
                                const nixl_meta_dlist_t &local,
                                const nixl_meta_dlist_t &remote,
                                const std::string &remote_agent,
                                nixlBackendReqH *&handle,
                                const nixl_opt_b_args_t *opt_args) const {
-    nixlHipfileAisBackendReqH *hf_handle = new nixlHipfileAisBackendReqH();
+    nixlRocmAisBackendReqH *hf_handle = new nixlRocmAisBackendReqH();
     size_t buf_cnt = local.descCount();
     size_t file_cnt = remote.descCount();
 
@@ -192,7 +192,7 @@ nixlHipfileAisEngine::prepXfer(const nixl_xfer_op_t &operation,
         void *base_addr;
         size_t total_size;
         size_t base_offset;
-        hipfileFileHandle fh;
+        rocmAisFileHandle fh;
 
         if (is_local_file) {
             base_addr = (void *)remote[i].addr;
@@ -203,8 +203,8 @@ nixlHipfileAisEngine::prepXfer(const nixl_xfer_op_t &operation,
             total_size = remote[i].len;
             base_offset = (size_t)local[i].addr;
 
-            auto it = hipfile_file_map.find(local[i].devId);
-            if (it == hipfile_file_map.end()) {
+            auto it = rocm_ais_file_map.find(local[i].devId);
+            if (it == rocm_ais_file_map.end()) {
                 NIXL_ERROR << "File handle not found";
                 delete hf_handle;
                 return NIXL_ERR_NOT_FOUND;
@@ -219,8 +219,8 @@ nixlHipfileAisEngine::prepXfer(const nixl_xfer_op_t &operation,
             total_size = local[i].len;
             base_offset = (size_t)remote[i].addr;
 
-            auto it = hipfile_file_map.find(remote[i].devId);
-            if (it == hipfile_file_map.end()) {
+            auto it = rocm_ais_file_map.find(remote[i].devId);
+            if (it == rocm_ais_file_map.end()) {
                 NIXL_ERROR << "File handle not found";
                 delete hf_handle;
                 return NIXL_ERR_NOT_FOUND;
@@ -234,7 +234,7 @@ nixlHipfileAisEngine::prepXfer(const nixl_xfer_op_t &operation,
         while (remaining_size > 0) {
             size_t request_size = std::min(remaining_size, (size_t)max_request_size);
 
-            HipfileTransferRequestH req;
+            RocmAisTransferRequestH req;
             req.addr = (char *)base_addr + current_offset;
             req.size = request_size;
             req.file_offset = base_offset + current_offset;
@@ -258,11 +258,11 @@ nixlHipfileAisEngine::prepXfer(const nixl_xfer_op_t &operation,
     return NIXL_SUCCESS;
 }
 
-nixlHipfileIOBatch *
-nixlHipfileAisEngine::getBatchFromPool(unsigned int size) const {
+nixlRocmAisIOBatch *
+nixlRocmAisEngine::getBatchFromPool(unsigned int size) const {
     const std::lock_guard<std::mutex> lock(batch_pool_lock);
     if (!batch_pool.empty()) {
-        nixlHipfileIOBatch *batch = batch_pool.back();
+        nixlRocmAisIOBatch *batch = batch_pool.back();
         batch_pool.pop_back();
         batch->reset();
         return batch;
@@ -271,19 +271,19 @@ nixlHipfileAisEngine::getBatchFromPool(unsigned int size) const {
 }
 
 void
-nixlHipfileAisEngine::returnBatchToPool(nixlHipfileIOBatch *batch) const {
+nixlRocmAisEngine::returnBatchToPool(nixlRocmAisIOBatch *batch) const {
     const std::lock_guard<std::mutex> lock(batch_pool_lock);
     batch_pool.push_back(batch);
 }
 
 nixl_status_t
-nixlHipfileAisEngine::postXfer(const nixl_xfer_op_t &operation,
+nixlRocmAisEngine::postXfer(const nixl_xfer_op_t &operation,
                                const nixl_meta_dlist_t &local,
                                const nixl_meta_dlist_t &remote,
                                const std::string &remote_agent,
                                nixlBackendReqH *&handle,
                                const nixl_opt_b_args_t *opt_args) const {
-    nixlHipfileAisBackendReqH *hf_handle = (nixlHipfileAisBackendReqH *)handle;
+    nixlRocmAisBackendReqH *hf_handle = (nixlRocmAisBackendReqH *)handle;
 
     if (hf_handle->request_list.empty()) {
         NIXL_ERROR << "Empty request list";
@@ -313,11 +313,11 @@ nixlHipfileAisEngine::postXfer(const nixl_xfer_op_t &operation,
 }
 
 nixl_status_t
-nixlHipfileAisEngine::createAndSubmitBatch(const std::vector<HipfileTransferRequestH> &requests,
+nixlRocmAisEngine::createAndSubmitBatch(const std::vector<RocmAisTransferRequestH> &requests,
                                            size_t start_idx,
                                            size_t batch_size,
-                                           std::vector<nixlHipfileIOBatch *> &batch_list) const {
-    nixlHipfileIOBatch *batch = getBatchFromPool(batch_size);
+                                           std::vector<nixlRocmAisIOBatch *> &batch_list) const {
+    nixlRocmAisIOBatch *batch = getBatchFromPool(batch_size);
     if (!batch) {
         NIXL_ERROR << "hipFile batch pool exhausted";
         return NIXL_ERR_BACKEND;
@@ -349,8 +349,8 @@ nixlHipfileAisEngine::createAndSubmitBatch(const std::vector<HipfileTransferRequ
 }
 
 nixl_status_t
-nixlHipfileAisEngine::checkXfer(nixlBackendReqH *handle) const {
-    nixlHipfileAisBackendReqH *hf_handle = (nixlHipfileAisBackendReqH *)handle;
+nixlRocmAisEngine::checkXfer(nixlBackendReqH *handle) const {
+    nixlRocmAisBackendReqH *hf_handle = (nixlRocmAisBackendReqH *)handle;
 
     if (hf_handle->batch_io_list.empty()) {
         hf_handle->needs_prep = true;
@@ -377,15 +377,15 @@ nixlHipfileAisEngine::checkXfer(nixlBackendReqH *handle) const {
 }
 
 nixl_status_t
-nixlHipfileAisEngine::releaseReqH(nixlBackendReqH *handle) const {
-    nixlHipfileAisBackendReqH *hf_handle = (nixlHipfileAisBackendReqH *)handle;
+nixlRocmAisEngine::releaseReqH(nixlBackendReqH *handle) const {
+    nixlRocmAisBackendReqH *hf_handle = (nixlRocmAisBackendReqH *)handle;
 
     delete hf_handle;
 
     return NIXL_SUCCESS;
 }
 
-nixlHipfileAisEngine::~nixlHipfileAisEngine() {
+nixlRocmAisEngine::~nixlRocmAisEngine() {
     for (auto *batch : batch_pool) {
         if (batch) {
             delete batch;
@@ -393,14 +393,14 @@ nixlHipfileAisEngine::~nixlHipfileAisEngine() {
     }
     batch_pool.clear();
 
-    if (hipfile_utils) {
-        hipfile_utils->closeHipFileDriver();
-        delete hipfile_utils;
+    if (rocm_ais_utils) {
+        rocm_ais_utils->closeHipFileDriver();
+        delete rocm_ais_utils;
     }
 }
 
 nixl_status_t
-nixlHipfileAisEngine::queryMem(const nixl_reg_dlist_t &descs,
+nixlRocmAisEngine::queryMem(const nixl_reg_dlist_t &descs,
                                std::vector<nixl_query_resp_t> &resp) const {
     std::vector<nixl_blob_t> metadata(descs.descCount());
     for (int i = 0; i < descs.descCount(); ++i) {

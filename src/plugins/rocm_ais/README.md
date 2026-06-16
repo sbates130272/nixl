@@ -16,14 +16,13 @@ See the License for the specific language governing permissions and
 limitations under the License.
 -->
 
-# NIXL hipFile AIS Plugin
+# NIXL ROCM_AIS Plugin (hipFile batch)
 
 ## Overview
 
-> **Experimental:** hipFile batch I/O is not fully supported on the AMD
-> backend yet. Prefer **HIPFILE_AIS_MT** for production workloads. Set
-> `NIXL_HIPFILE_BATCH_TEST=1` to run full batch tests in
-> `nixl_hipfile_ais_test`.
+> **Experimental:** hipFile batch I/O is not fully supported on the AMD backend
+> yet. Prefer **AIS_MT** for production workloads. Set `NIXL_ROCM_AIS_BATCH_TEST=1`
+> to run full batch tests in `nixl_rocm_ais_test`.
 
 This plugin uses AMD hipFile APIs as an I/O backend for NIXL, enabling AMD
 Infinity Storage on AMD GPUs. It parallels the NVIDIA GDS (cuFile) plugin—the
@@ -42,7 +41,7 @@ memory (DRAM) and GPU memory (VRAM).
 
 The plugin is built automatically when:
 
-1. `HIPFILE_AIS` is in the enabled plugins list (default: all plugins enabled)
+1. `ROCM_AIS` is in the enabled plugins list (default: all plugins enabled)
 2. The HIP runtime is detected
 3. The hipFile library (`libhipfile.so`) is found
 
@@ -50,27 +49,27 @@ The plugin is built automatically when:
 
 | Option | Default | Description |
 |--------|---------|-------------|
-| `hipfile_ais_path` | auto-detect | Path to hipFile install prefix |
-| `disable_hipfile_ais_backend` | `false` | Disable the hipFile AIS backend |
+| `rocm_ais_path` | auto-detect | Path to hipFile install prefix |
+| `disable_rocm_ais_backend` | `false` | Disable ROCm AIS (hipFile) backends |
 
 ### Example commands
 
 ```bash
 # Auto-detect ROCm and hipFile
-meson setup builddir -Denable_plugins=HIPFILE_AIS
+meson setup builddir -Denable_plugins=ROCM_AIS
 
 # Explicit paths
 meson setup builddir \
-  -Dhipfile_ais_path=/opt/rocs-ais
+  -Drocm_ais_path=/opt/rocs-ais
 
 # Static plugin
-meson setup builddir -Dstatic_plugins=HIPFILE_AIS
+meson setup builddir -Dstatic_plugins=ROCM_AIS
 ```
 
 ## API Reference
 
-- **Backend name:** `HIPFILE_AIS` (pass to `nixlAgent::createBackend` or the C
-  API equivalent).
+- **Backend name:** `ROCM_AIS` (pass to `nixlAgent::createBackend` or the C API
+  equivalent).
 
 ### Backend parameters
 
@@ -90,9 +89,9 @@ meson setup builddir -Dstatic_plugins=HIPFILE_AIS
 
 ### Mutual exclusion
 
-The `HIPFILE_AIS` plugin cannot be loaded simultaneously with the NVIDIA `GDS`
-or `GDS_MT` plugins. This is enforced by the NIXL agent at backend creation
-time.
+The `ROCM_AIS` plugin cannot be loaded simultaneously with the NVIDIA `GDS` or
+`GDS_MT` plugins, or with `AIS_MT`. This is enforced by the NIXL agent at backend
+creation time.
 
 ## Example Usage
 
@@ -102,8 +101,8 @@ params["batch_pool_size"] = "16";
 params["batch_limit"] = "128";
 params["max_request_size"] = "16777216"; // 16 MB
 
-nixlBackendH *hipfile_ais;
-agent.createBackend("HIPFILE_AIS", params, hipfile_ais);
+nixlBackendH *rocm_ais;
+agent.createBackend("ROCM_AIS", params, rocm_ais);
 ```
 
 <!-- References -->

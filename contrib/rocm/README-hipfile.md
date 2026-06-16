@@ -1,15 +1,15 @@
 # hipFile / AMD Infinity Storage — NIXL testing notes
 
-Workstation and lab validation for the `HIPFILE_AIS` and `HIPFILE_AIS_MT`
-plugins on upstream NIXL. See also [`README.md`](README.md) for build and
-Slurm entry points.
+Workstation and lab validation for the `ROCM_AIS` and `AIS_MT` plugins on
+upstream NIXL. See also [`README.md`](README.md) for build and Slurm entry
+points.
 
 ## Plugins
 
 | Plugin | API | Status |
 |--------|-----|--------|
-| `HIPFILE_AIS_MT` | Sync `hipFileRead` / `hipFileWrite` + Taskflow pool | **Production path** |
-| `HIPFILE_AIS` | `hipFileBatchIO*` APIs | **Experimental** on AMD today |
+| `AIS_MT` | Sync `hipFileRead` / `hipFileWrite` + Taskflow pool | **Production path** |
+| `ROCM_AIS` | `hipFileBatchIO*` APIs | **Experimental** on AMD today |
 
 Mutually exclusive with NVIDIA `GDS`, `GDS_MT`, and with each other (enforced
 in `nixl_agent`).
@@ -26,18 +26,19 @@ pip install meson ninja pybind11
 meson setup build-rocm \
   -Dbuildtype=debug \
   -Ducx_path=$HOME/Projects/rocm-ucx/install \
-  -Dhipfile_ais_path=/opt/rocm
+  -Drocm_ais_path=/opt/rocm
 meson compile -C build-rocm
 ```
 
-Plugins appear under `build-rocm/src/plugins/` (`libplugin_HIPFILE_AIS*.so`).
+Plugins appear under `build-rocm/src/plugins/` (`libplugin_ROCM_AIS*.so`,
+`libplugin_AIS_MT*.so`).
 
 ## Runtime environment
 
 ```bash
 export LD_LIBRARY_PATH=\
 "build-rocm/src/utils/common:build-rocm/src/core:build-rocm/src/infra:\
-build-rocm/src/plugins/hipfile_ais_mt:build-rocm/src/plugins/hipfile_ais:\
+build-rocm/src/plugins/ais_mt:build-rocm/src/plugins/rocm_ais:\
 /opt/rocm/lib:${LD_LIBRARY_PATH:-}"
 
 export HIPFILE_UNSUPPORTED_FILE_SYSTEMS=true
@@ -49,8 +50,8 @@ export NIXL_PLUGIN_DIR=build-rocm/src/plugins   # optional; silences warning
 | `HIPFILE_UNSUPPORTED_FILE_SYSTEMS=true` | Allow non-GDS filesystems in tests |
 | `HIPFILE_ALLOW_COMPAT_MODE=true` | Allow registration fallback (DRAM only) |
 | `HIPFILE_ALLOW_COMPAT_MODE=false` | Fail if true AIS path unavailable (Slurm) |
-| `NIXL_HIPFILE_TEST_NVME` | Path-mode smoke target (default: Microsemi by-id) |
-| `NIXL_HIPFILE_BATCH_TEST=1` | Enable full storage test in `nixl_hipfile_ais_test` |
+| `NIXL_ROCM_AIS_TEST_NVME` | Path-mode smoke target (default: Microsemi by-id) |
+| `NIXL_ROCM_AIS_BATCH_TEST=1` | Enable full storage test in `nixl_rocm_ais_test` |
 
 ## Test hardware
 
@@ -66,21 +67,21 @@ Workstation layout used for validation:
 - GPU: AMD RX 9070 XT (ROCm), hipFile from `/opt/rocm`
 
 Path-mode smoke must not open the raw block device with `fopen()`. Point
-`NIXL_HIPFILE_TEST_NVME` at a file on the mount, for example
+`NIXL_ROCM_AIS_TEST_NVME` at a file on the mount, for example
 `/mnt/microsemi/nixl-test/path-smoke.bin`.
 
 ## Unit test binaries
 
 | Binary | Role |
 |--------|------|
-| `build-rocm/test/unit/plugins/hipfile_ais_mt/nixl_hipfile_ais_mt_test` | Primary hardware test |
-| `build-rocm/test/unit/plugins/hipfile_ais/nixl_hipfile_ais_test` | Path smoke default; batch test gated |
+| `build-rocm/test/unit/plugins/ais_mt/nixl_ais_mt_test` | Primary hardware test |
+| `build-rocm/test/unit/plugins/rocm_ais/nixl_rocm_ais_test` | Path smoke default; batch test gated |
 | `build-rocm/test/nixl/test_plugin build-rocm/src/plugins` | Plugin load smoke |
 
-### `nixl_hipfile_ais_mt_test` flags
+### `nixl_ais_mt_test` flags
 
-- `-P` — skip path-mode smoke (no `-P` on `nixl_hipfile_ais_test`; that binary
-  has no such flag)
+- `-P` — skip path-mode smoke (no `-P` on `nixl_rocm_ais_test`; that binary has
+  no such flag)
 - `-v` / `-d` — VRAM (default) or DRAM
 - `-n N` — number of parallel transfer descriptors (use `-n 1` today)
 - `-s SIZE` — per-transfer size (`1M`, `64M`, …)
@@ -89,7 +90,7 @@ Path-mode smoke must not open the raw block device with `fopen()`. Point
 
 ## Validation results (snoc-thinkstation, 2026-06-05)
 
-### Passed — `HIPFILE_AIS_MT` VRAM
+### Passed — `AIS_MT` VRAM
 
 All runs used `-P -v -n 1` and directory `/mnt/microsemi/nixl-test`. Phase 5
 reported **Verification completed successfully!**
@@ -107,7 +108,7 @@ Taskflow threading for single-descriptor requests.
 
 ### Failed or not supported — expected on current ROCm hipFile
 
-**`HIPFILE_AIS_MT` DRAM** (`-d`, `HIPFILE_ALLOW_COMPAT_MODE=true`):
+**`AIS_MT` DRAM** (`-d`, `HIPFILE_ALLOW_COMPAT_MODE=true`):
 
 - `hipFileBufRegister` returns **5013** (`hipFileHipMemoryTypeInvalid`)
 - Compat mode logs a warning and skips registration; `hipFileWrite` still
@@ -115,7 +116,7 @@ Taskflow threading for single-descriptor requests.
   `"Success"` — misleading)
 - Host DRAM AIS is not a supported validation target on this stack today
 
-**`HIPFILE_AIS` batch plugin** (`NIXL_HIPFILE_BATCH_TEST=1`):
+**`ROCM_AIS` batch plugin** (`NIXL_ROCM_AIS_BATCH_TEST=1`):
 
 - `hipFileBatchIOSubmit`: **Internal GPU IO library error** (VRAM and DRAM)
 - Documented as experimental until AMD batch backend is complete
@@ -127,7 +128,7 @@ Taskflow threading for single-descriptor requests.
 
 **Path-mode smoke** (default first step when no directory arg):
 
-- Works when `NIXL_HIPFILE_TEST_NVME` is a regular file on the test mount
+- Works when `NIXL_ROCM_AIS_TEST_NVME` is a regular file on the test mount
 - Fails or is unsafe when set to the raw by-id block device
 
 ### Plugin manager warning (harmless in debug builds)
@@ -141,7 +142,7 @@ plugins via `build-rocm/pluginlist`. Set `NIXL_PLUGIN_DIR` as above or ignore.
 export TESTDIR=/mnt/microsemi/nixl-test
 mkdir -p "$TESTDIR"
 
-./build-rocm/test/unit/plugins/hipfile_ais_mt/nixl_hipfile_ais_mt_test \
+./build-rocm/test/unit/plugins/ais_mt/nixl_ais_mt_test \
   -P -v -n 1 -s 1M "$TESTDIR"
 ```
 
@@ -172,13 +173,13 @@ path-mode smoke only (no directory argument in the sbatch script).
    (use `hipFileGetOpErrorString`, not `strerror(errno)`)
 3. Path-mode smoke: refuse block devices or default to a file under `$TESTDIR`
 4. DRAM AIS when ROCm hipFile supports host buffers on target hardware
-5. `HIPFILE_AIS` batch when AMD ships batch backend support
+5. `ROCM_AIS` batch when AMD ships batch backend support
 6. Cluster rerun via `contrib/rocm/test-hipfile-ais-mt.sbatch`
 
 ## Sign-off bar (Tier-2 bare metal)
 
-**Pass:** `HIPFILE_AIS_MT` VRAM, `-n 1`, mounted Microsemi test directory,
-write + read + pattern verify.
+**Pass:** `AIS_MT` VRAM, `-n 1`, mounted Microsemi test directory, write + read
++ pattern verify.
 
 **Not required for enablement sign-off:** DRAM AIS, batch plugin full test,
 default 250-transfer workload, Slurm (until MARKHAM+NVME available).

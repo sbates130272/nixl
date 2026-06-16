@@ -16,20 +16,21 @@ See the License for the specific language governing permissions and
 limitations under the License.
 -->
 
-# NIXL hipFile AIS_MT Plugin
+# NIXL AIS_MT Plugin (hipFile multi-threaded)
 
 ## Overview
 
 Production AMD Infinity Storage backend for NIXL. Uses synchronous
-`hipFileRead` / `hipFileWrite` with a Taskflow thread pool—the supported path
-on current hipFile AMD backends. Prefer this backend over `HIPFILE_AIS` until
-hipFile batch I/O is fully supported on AMD.
+`hipFileRead` / `hipFileWrite` with a Taskflow thread pool—the supported path on
+current hipFile AMD backends. Prefer this backend over `ROCM_AIS` until hipFile
+batch I/O is fully supported on AMD.
 
 ## Dependencies
 
 - **ROCm** 7.1 or later with HIP runtime (hipFile requires ROCm 7.1+)
 - hipFile (`libhipfile.so`) from [ROCm/rocm-systems][rocm-systems]
-- Taskflow (bundled via Meson subproject, same pattern as the NVIDIA `GDS_MT` plugin)
+- Taskflow (bundled via Meson subproject, same pattern as the NVIDIA `GDS_MT`
+  plugin)
 - For hardware tests: Microsemi MTR SLC test SSD only:
   `/dev/disk/by-id/nvme-MTR_SLC_16GB_0400000E3CBC`
 
@@ -38,7 +39,7 @@ hipFile batch I/O is fully supported on AMD.
 ```bash
 meson setup build -Dwheel_variant=rocm \
   -Ducx_path=/opt/rocnixl-ucx \
-  -Dhipfile_ais_path=/opt/rocm
+  -Drocm_ais_path=/opt/rocm
 meson compile -C build
 ```
 
@@ -46,8 +47,8 @@ Or use [`contrib/rocm/build-nixl-rocm.sh`](../../../contrib/rocm/build-nixl-rocm
 
 ## API Reference
 
-- **Backend name:** `HIPFILE_AIS_MT` (pass to `nixlAgent::createBackend` or the
-  C API equivalent).
+- **Backend name:** `AIS_MT` (pass to `nixlAgent::createBackend` or the C API
+  equivalent).
 
 ### Backend parameters
 
@@ -61,15 +62,15 @@ Or use [`contrib/rocm/build-nixl-rocm.sh`](../../../contrib/rocm/build-nixl-rocm
 |----------|---------|
 | `HIPFILE_ALLOW_COMPAT_MODE=false` | Fail if true AIS path unavailable (recommended) |
 | `HIPFILE_UNSUPPORTED_FILE_SYSTEMS=true` | Allow test filesystems when needed |
-| `NIXL_HIPFILE_TEST_NVME` | Override test NVMe path (default: Microsemi by-id above) |
+| `NIXL_ROCM_AIS_TEST_NVME` | Override test NVMe path (default: Microsemi by-id above) |
 
 ### Mutual exclusion
 
-Cannot load simultaneously with `GDS`, `GDS_MT`, or `HIPFILE_AIS`.
+Cannot load simultaneously with `GDS`, `GDS_MT`, or `ROCM_AIS`.
 
 ### Related backends
 
-- Batch variant: `HIPFILE_AIS` (experimental until hipFile batch AMD backend ships)
+- Batch variant: `ROCM_AIS` (experimental until hipFile batch AMD backend ships)
 - NVIDIA equivalent: `GDS_MT`
 
 ## Example Usage
@@ -77,8 +78,8 @@ Cannot load simultaneously with `GDS`, `GDS_MT`, or `HIPFILE_AIS`.
 ```cpp
 nixl_b_params_t params;
 params["thread_count"] = "8";
-nixlBackendH *hipfile_ais_mt;
-agent.createBackend("HIPFILE_AIS_MT", params, hipfile_ais_mt);
+nixlBackendH *ais_mt;
+agent.createBackend("AIS_MT", params, ais_mt);
 ```
 
 <!-- References -->

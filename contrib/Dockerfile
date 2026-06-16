@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# ROCm / hipFile (HIPFILE_AIS, HIPFILE_AIS_MT) compile CI uses
+# ROCm / hipFile (ROCM_AIS, AIS_MT) compile CI uses
 # .ci/dockerfiles/Dockerfile.rocm-build. See contrib/rocm/README.md and
 # contrib/rocm/README-hipfile.md.
 

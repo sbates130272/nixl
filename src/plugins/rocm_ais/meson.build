@@ -14,8 +14,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-hipfile_ais_path = get_option('hipfile_ais_path')
-if hipfile_ais_path == ''
+rocm_ais_path = get_option('rocm_ais_path')
+if rocm_ais_path == ''
     # Auto-detect from ROCM_PATH or /opt/rocm
     rocm_path = run_command('bash', '-c', 'echo $ROCM_PATH').stdout().strip()
     if rocm_path == ''
@@ -47,19 +47,19 @@ if hipfile_ais_path == ''
         subdir_done()
     endif
 else
-    hipfile_lib_path = hipfile_ais_path + '/lib'
-    hipfile_inc_path = hipfile_ais_path + '/include'
+    hipfile_lib_path = rocm_ais_path + '/lib'
+    hipfile_inc_path = rocm_ais_path + '/include'
     hipfile_dep = declare_dependency(
         link_args: ['-L' + hipfile_lib_path, '-lhipfile',
                     '-Wl,-rpath,' + hipfile_lib_path],
         include_directories: include_directories(hipfile_inc_path))
 endif
 
-if 'HIPFILE_AIS' in static_plugins
-    hipfile_ais_backend_lib = static_library('HIPFILE_AIS',
-        'hipfile_ais_utils.cpp', 'hipfile_ais_utils.h',
-        'hipfile_ais_backend.cpp', 'hipfile_ais_backend.h',
-        'hipfile_ais_plugin.cpp',
+if 'ROCM_AIS' in static_plugins
+    rocm_ais_backend_lib = static_library('ROCM_AIS',
+        'rocm_ais_utils.cpp', 'rocm_ais_utils.h',
+        'rocm_ais_backend.cpp', 'rocm_ais_backend.h',
+        'rocm_ais_plugin.cpp',
         dependencies: [nixl_infra, nixl_common_dep, hip_dep, hipfile_dep,
                        file_utils_interface],
         include_directories: [nixl_inc_dirs, utils_inc_dirs],
@@ -67,10 +67,10 @@ if 'HIPFILE_AIS' in static_plugins
         cpp_args: compile_flags,
         name_prefix: 'libplugin_')
 else
-    hipfile_ais_backend_lib = shared_library('HIPFILE_AIS',
-        'hipfile_ais_utils.cpp', 'hipfile_ais_utils.h',
-        'hipfile_ais_backend.cpp', 'hipfile_ais_backend.h',
-        'hipfile_ais_plugin.cpp',
+    rocm_ais_backend_lib = shared_library('ROCM_AIS',
+        'rocm_ais_utils.cpp', 'rocm_ais_utils.h',
+        'rocm_ais_backend.cpp', 'rocm_ais_backend.h',
+        'rocm_ais_plugin.cpp',
         dependencies: [nixl_infra, nixl_common_dep, hip_dep, hipfile_dep,
                        file_utils_interface],
         include_directories: [nixl_inc_dirs, utils_inc_dirs],
@@ -81,12 +81,12 @@ else
         install_rpath: '$ORIGIN/..')
     if get_option('buildtype') == 'debug'
         run_command('sh', '-c',
-            'echo "HIPFILE_AIS=' + hipfile_ais_backend_lib.full_path() +
+            'echo "ROCM_AIS=' + rocm_ais_backend_lib.full_path() +
             '" >> ' + plugin_build_dir + '/pluginlist',
             check: true
         )
     endif
 endif
 
-hipfile_ais_backend_interface = declare_dependency(
-    link_with: hipfile_ais_backend_lib)
+rocm_ais_backend_interface = declare_dependency(
+    link_with: rocm_ais_backend_lib)
