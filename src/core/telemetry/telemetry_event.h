@@ -25,7 +25,10 @@
 constexpr char TELEMETRY_BUFFER_SIZE_VAR[] = "NIXL_TELEMETRY_BUFFER_SIZE";
 constexpr char TELEMETRY_RUN_INTERVAL_VAR[] = "NIXL_TELEMETRY_RUN_INTERVAL";
 
-constexpr inline int TELEMETRY_VERSION = 3;
+constexpr inline int TELEMETRY_VERSION = 4;
+
+/** Sentinel gpu_id when a telemetry event is not associated with a GPU. */
+constexpr int32_t NIXL_TELEMETRY_NO_GPU = -1;
 
 /**
  * @enum nixl_telemetry_event_type_t
@@ -52,6 +55,20 @@ enum class nixl_telemetry_event_type_t : uint32_t {
     AGENT_ERR_REMOTE_DISCONNECT = 17,
     AGENT_ERR_CANCELED = 18,
     AGENT_ERR_NO_TELEMETRY = 19,
+    AGENT_AIS_MT_READ_BYTES = 20,
+    AGENT_AIS_MT_WRITE_BYTES = 21,
+    AGENT_AIS_MT_READ_OPS = 22,
+    AGENT_AIS_MT_WRITE_OPS = 23,
+    AGENT_AIS_MT_READ_ERRORS = 24,
+    AGENT_AIS_MT_WRITE_ERRORS = 25,
+    AGENT_AIS_MT_SHORT_IO = 26,
+    AGENT_AIS_MT_BUF_REGISTER_OK = 27,
+    AGENT_AIS_MT_BUF_REGISTER_COMPAT = 28,
+    AGENT_AIS_MT_BUF_REGISTER_ERRORS = 29,
+    AGENT_AIS_MT_FILE_HANDLE_ERRORS = 30,
+    AGENT_AIS_MT_HIP_DEVICE_ERRORS = 31,
+    AGENT_AIS_MT_HIP_SYNC_ERRORS = 32,
+    AGENT_AIS_MT_THREAD_COUNT = 33,
 };
 
 [[nodiscard]] nixl_telemetry_event_type_t
@@ -101,8 +118,54 @@ telemetryEventTypeStr(const nixl_telemetry_event_type_t type) noexcept {
         return "agent_err_canceled";
     case nixl_telemetry_event_type_t::AGENT_ERR_NO_TELEMETRY:
         return "agent_err_no_telemetry";
+    case nixl_telemetry_event_type_t::AGENT_AIS_MT_READ_BYTES:
+        return "agent_ais_mt_read_bytes";
+    case nixl_telemetry_event_type_t::AGENT_AIS_MT_WRITE_BYTES:
+        return "agent_ais_mt_write_bytes";
+    case nixl_telemetry_event_type_t::AGENT_AIS_MT_READ_OPS:
+        return "agent_ais_mt_read_ops";
+    case nixl_telemetry_event_type_t::AGENT_AIS_MT_WRITE_OPS:
+        return "agent_ais_mt_write_ops";
+    case nixl_telemetry_event_type_t::AGENT_AIS_MT_READ_ERRORS:
+        return "agent_ais_mt_read_errors";
+    case nixl_telemetry_event_type_t::AGENT_AIS_MT_WRITE_ERRORS:
+        return "agent_ais_mt_write_errors";
+    case nixl_telemetry_event_type_t::AGENT_AIS_MT_SHORT_IO:
+        return "agent_ais_mt_short_io";
+    case nixl_telemetry_event_type_t::AGENT_AIS_MT_BUF_REGISTER_OK:
+        return "agent_ais_mt_buf_register_ok";
+    case nixl_telemetry_event_type_t::AGENT_AIS_MT_BUF_REGISTER_COMPAT:
+        return "agent_ais_mt_buf_register_compat";
+    case nixl_telemetry_event_type_t::AGENT_AIS_MT_BUF_REGISTER_ERRORS:
+        return "agent_ais_mt_buf_register_errors";
+    case nixl_telemetry_event_type_t::AGENT_AIS_MT_FILE_HANDLE_ERRORS:
+        return "agent_ais_mt_file_handle_errors";
+    case nixl_telemetry_event_type_t::AGENT_AIS_MT_HIP_DEVICE_ERRORS:
+        return "agent_ais_mt_hip_device_errors";
+    case nixl_telemetry_event_type_t::AGENT_AIS_MT_HIP_SYNC_ERRORS:
+        return "agent_ais_mt_hip_sync_errors";
+    case nixl_telemetry_event_type_t::AGENT_AIS_MT_THREAD_COUNT:
+        return "agent_ais_mt_thread_count";
     }
     return "unknown_event";
+}
+
+[[nodiscard]] constexpr bool
+telemetryEventUsesGpuLabel(const nixl_telemetry_event_type_t type) noexcept {
+    switch (type) {
+    case nixl_telemetry_event_type_t::AGENT_AIS_MT_READ_BYTES:
+    case nixl_telemetry_event_type_t::AGENT_AIS_MT_WRITE_BYTES:
+    case nixl_telemetry_event_type_t::AGENT_AIS_MT_READ_OPS:
+    case nixl_telemetry_event_type_t::AGENT_AIS_MT_WRITE_OPS:
+    case nixl_telemetry_event_type_t::AGENT_AIS_MT_READ_ERRORS:
+    case nixl_telemetry_event_type_t::AGENT_AIS_MT_WRITE_ERRORS:
+    case nixl_telemetry_event_type_t::AGENT_AIS_MT_SHORT_IO:
+    case nixl_telemetry_event_type_t::AGENT_AIS_MT_HIP_DEVICE_ERRORS:
+    case nixl_telemetry_event_type_t::AGENT_AIS_MT_HIP_SYNC_ERRORS:
+        return true;
+    default:
+        return false;
+    }
 }
 }
 
@@ -113,12 +176,16 @@ telemetryEventTypeStr(const nixl_telemetry_event_type_t type) noexcept {
 struct nixlTelemetryEvent {
     nixl_telemetry_event_type_t eventType_; // Detailed event type/identifier
     uint64_t value_; // Numeric value associated with the event
+    int32_t gpuId_ = NIXL_TELEMETRY_NO_GPU; // GPU index for per-device metrics
 
     nixlTelemetryEvent() noexcept = default;
 
-    nixlTelemetryEvent(nixl_telemetry_event_type_t event_type, uint64_t value) noexcept
+    nixlTelemetryEvent(nixl_telemetry_event_type_t event_type,
+                       uint64_t value,
+                       int32_t gpu_id = NIXL_TELEMETRY_NO_GPU) noexcept
         : eventType_(event_type),
-          value_(value) {}
+          value_(value),
+          gpuId_(gpu_id) {}
 };
 
 #endif

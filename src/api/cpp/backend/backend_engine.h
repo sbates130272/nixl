@@ -35,8 +35,8 @@ class nixlBackendEngine {
         // Members that cannot be modified by a child backend and parent bookkeep
         nixl_backend_t  backendType;
         nixl_b_params_t customParams;
-        std::vector<nixlTelemetryEvent> telemetryEvents_;
-        std::mutex telemetryEventsMutex_;
+        mutable std::vector<nixlTelemetryEvent> telemetryEvents_;
+        mutable std::mutex telemetryEventsMutex_;
 
     protected:
         // Members that can be accessed by the child (localAgent cannot be modified)
@@ -62,7 +62,9 @@ class nixlBackendEngine {
         }
 
         void
-        addTelemetryEvent(nixl_telemetry_event_type_t event_type, uint64_t value) {
+        addTelemetryEvent(nixl_telemetry_event_type_t event_type,
+                          uint64_t value,
+                          int32_t gpu_id = NIXL_TELEMETRY_NO_GPU) const {
             if (!enableTelemetry_) {
                 return;
             }
@@ -70,7 +72,7 @@ class nixlBackendEngine {
             if (telemetryEvents_.size() >= MAX_TELEMETRY_QUEUE_SIZE) {
                 return;
             }
-            telemetryEvents_.emplace_back(event_type, value);
+            telemetryEvents_.emplace_back(event_type, value, gpu_id);
         }
 
     public:
@@ -89,7 +91,7 @@ class nixlBackendEngine {
         virtual ~nixlBackendEngine() = default;
 
         std::vector<nixlTelemetryEvent>
-        getTelemetryEvents() {
+        getTelemetryEvents() const {
             std::lock_guard<std::mutex> lock(telemetryEventsMutex_);
             return std::move(telemetryEvents_);
         }

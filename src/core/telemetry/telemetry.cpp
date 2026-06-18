@@ -240,13 +240,15 @@ nixlTelemetry::registerPeriodicTask(periodicTask &task) {
 }
 
 void
-nixlTelemetry::updateData(nixl_telemetry_event_type_t event_type, uint64_t value) {
+nixlTelemetry::updateData(nixl_telemetry_event_type_t event_type,
+                          uint64_t value,
+                          int32_t gpu_id) {
     // agent can be multi-threaded
     std::lock_guard<std::mutex> lock(mutex_);
     if (events_.size() >= maxBufferedEvents_) {
         return;
     }
-    events_.emplace_back(event_type, value);
+    events_.emplace_back(event_type, value, gpu_id);
 }
 
 // The next 4 methods might be removed, as addXferTime covers them.
@@ -309,4 +311,23 @@ void
 nixlTelemetry::addPostTime(std::chrono::microseconds post_time) {
     updateData(nixl_telemetry_event_type_t::AGENT_XFER_POST_TIME,
                static_cast<uint64_t>(post_time.count()));
+}
+
+void
+nixlTelemetry::ingestEvent(const nixlTelemetryEvent &event) {
+    updateData(event.eventType_, event.value_, event.gpuId_);
+}
+
+void
+nixlTelemetry::ingestEvents(std::vector<nixlTelemetryEvent> events) {
+    if (events.empty()) {
+        return;
+    }
+    std::lock_guard<std::mutex> lock(mutex_);
+    for (auto &event : events) {
+        if (events_.size() >= maxBufferedEvents_) {
+            return;
+        }
+        events_.emplace_back(event);
+    }
 }

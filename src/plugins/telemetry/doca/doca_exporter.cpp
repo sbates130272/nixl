@@ -90,6 +90,20 @@ isCounterEvent(nixl_telemetry_event_type_t event_type) noexcept {
     case nixl_telemetry_event_type_t::AGENT_ERR_REMOTE_DISCONNECT:
     case nixl_telemetry_event_type_t::AGENT_ERR_CANCELED:
     case nixl_telemetry_event_type_t::AGENT_ERR_NO_TELEMETRY:
+    case nixl_telemetry_event_type_t::AGENT_AIS_MT_READ_BYTES:
+    case nixl_telemetry_event_type_t::AGENT_AIS_MT_WRITE_BYTES:
+    case nixl_telemetry_event_type_t::AGENT_AIS_MT_READ_OPS:
+    case nixl_telemetry_event_type_t::AGENT_AIS_MT_WRITE_OPS:
+    case nixl_telemetry_event_type_t::AGENT_AIS_MT_READ_ERRORS:
+    case nixl_telemetry_event_type_t::AGENT_AIS_MT_WRITE_ERRORS:
+    case nixl_telemetry_event_type_t::AGENT_AIS_MT_SHORT_IO:
+    case nixl_telemetry_event_type_t::AGENT_AIS_MT_BUF_REGISTER_OK:
+    case nixl_telemetry_event_type_t::AGENT_AIS_MT_BUF_REGISTER_COMPAT:
+    case nixl_telemetry_event_type_t::AGENT_AIS_MT_BUF_REGISTER_ERRORS:
+    case nixl_telemetry_event_type_t::AGENT_AIS_MT_FILE_HANDLE_ERRORS:
+    case nixl_telemetry_event_type_t::AGENT_AIS_MT_HIP_DEVICE_ERRORS:
+    case nixl_telemetry_event_type_t::AGENT_AIS_MT_HIP_SYNC_ERRORS:
+    case nixl_telemetry_event_type_t::AGENT_AIS_MT_THREAD_COUNT:
         return false;
     }
     return false;
@@ -119,6 +133,20 @@ isGaugeEvent(nixl_telemetry_event_type_t event_type) noexcept {
     case nixl_telemetry_event_type_t::AGENT_ERR_REMOTE_DISCONNECT:
     case nixl_telemetry_event_type_t::AGENT_ERR_CANCELED:
     case nixl_telemetry_event_type_t::AGENT_ERR_NO_TELEMETRY:
+    case nixl_telemetry_event_type_t::AGENT_AIS_MT_READ_BYTES:
+    case nixl_telemetry_event_type_t::AGENT_AIS_MT_WRITE_BYTES:
+    case nixl_telemetry_event_type_t::AGENT_AIS_MT_READ_OPS:
+    case nixl_telemetry_event_type_t::AGENT_AIS_MT_WRITE_OPS:
+    case nixl_telemetry_event_type_t::AGENT_AIS_MT_READ_ERRORS:
+    case nixl_telemetry_event_type_t::AGENT_AIS_MT_WRITE_ERRORS:
+    case nixl_telemetry_event_type_t::AGENT_AIS_MT_SHORT_IO:
+    case nixl_telemetry_event_type_t::AGENT_AIS_MT_BUF_REGISTER_OK:
+    case nixl_telemetry_event_type_t::AGENT_AIS_MT_BUF_REGISTER_COMPAT:
+    case nixl_telemetry_event_type_t::AGENT_AIS_MT_BUF_REGISTER_ERRORS:
+    case nixl_telemetry_event_type_t::AGENT_AIS_MT_FILE_HANDLE_ERRORS:
+    case nixl_telemetry_event_type_t::AGENT_AIS_MT_HIP_DEVICE_ERRORS:
+    case nixl_telemetry_event_type_t::AGENT_AIS_MT_HIP_SYNC_ERRORS:
+    case nixl_telemetry_event_type_t::AGENT_AIS_MT_THREAD_COUNT:
         return false;
     }
     return false;

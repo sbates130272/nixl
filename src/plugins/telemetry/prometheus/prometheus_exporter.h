@@ -21,6 +21,7 @@
 #include "telemetry_event.h"
 #include "nixl_types.h"
 
+#include <cstdint>
 #include <string>
 #include <memory>
 #include <unordered_map>
@@ -100,6 +101,8 @@ private:
 
     std::unordered_map<std::string, CounterEntry> counters_;
     std::unordered_map<std::string, GaugeEntry> gauges_;
+    std::unordered_map<std::string, prometheus::Family<prometheus::Counter> *> gpu_counter_families_;
+    std::unordered_map<std::string, CounterEntry> gpu_counters_;
 
     void
     initializeMetrics();
@@ -109,6 +112,15 @@ private:
 
     void
     registerGauge(const std::string &name, const std::string &help);
+
+    void
+    registerGpuCounterFamily(const std::string &name, const std::string &help);
+
+    prometheus::Counter *
+    getOrCreateGpuCounter(const std::string &name, int32_t gpu_id);
+
+    [[nodiscard]] static std::string
+    gpuCounterKey(const std::string &name, int32_t gpu_id);
 };
 
 #endif // NIXL_SRC_PLUGINS_TELEMETRY_PROMETHEUS_EXPORTER_H

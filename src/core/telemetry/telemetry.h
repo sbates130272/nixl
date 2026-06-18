@@ -89,6 +89,12 @@ public:
     void
     addPostTime(std::chrono::microseconds post_time);
 
+    void
+    ingestEvent(const nixlTelemetryEvent &event);
+
+    void
+    ingestEvents(std::vector<nixlTelemetryEvent> events);
+
 private:
     // Load the named telemetry plugin and create its exporter. Throws on a
     // genuine plugin-load / exporter-creation failure. Used to initialize the
@@ -102,7 +108,7 @@ private:
     void
     registerPeriodicTask(periodicTask &task);
     void
-    updateData(nixl_telemetry_event_type_t event_type, uint64_t value);
+    updateData(nixl_telemetry_event_type_t event_type, uint64_t value, int32_t gpu_id = NIXL_TELEMETRY_NO_GPU);
     bool
     writeEventHelper();
 

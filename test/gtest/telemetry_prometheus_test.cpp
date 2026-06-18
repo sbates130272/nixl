@@ -150,7 +150,8 @@ bool
 findAgentMetricSample(const std::string &body,
                       const std::string &metric_name,
                       const std::string &agent_name,
-                      PrometheusSample &sample) {
+                      PrometheusSample &sample,
+                      const std::string &gpu_id = {}) {
     std::istringstream body_lines(body);
     std::string line;
     while (std::getline(body_lines, line)) {
@@ -168,6 +169,12 @@ findAgentMetricSample(const std::string &body,
         const auto hostname_it = labels.find("hostname");
         if (agent_it != labels.end() && agent_it->second == agent_name &&
             hostname_it != labels.end() && !hostname_it->second.empty()) {
+            if (!gpu_id.empty()) {
+                const auto gpu_it = labels.find("gpu_id");
+                if (gpu_it == labels.end() || gpu_it->second != gpu_id) {
+                    continue;
+                }
+            }
             sample.labels = labels;
             sample.value = value;
             return true;
@@ -374,4 +381,54 @@ TEST_F(prometheusTelemetryTest, ExportEventIncrementReflectedInScrape) {
     EXPECT_EQ(remaining_sample.value, static_cast<double>(kIncrement * kEventCount));
     EXPECT_FALSE(hasAnyAgentMetricSample(after_peer_teardown_body, peer_agent_name))
         << "Peer agent metrics remained after peer exporter was destroyed";
+}
+
+TEST_F(prometheusTelemetryTest, ErrorAndAisMtGpuMetricsReflectedInScrape) {
+    auto handle = nixlPluginManager::getInstance().loadTelemetryPlugin("prometheus");
+    ASSERT_NE(handle, nullptr);
+
+    const std::string agent_name = "prometheus_err_gpu_agent";
+    const nixlTelemetryExporterInitParams params{agent_name, 4096};
+    auto exporter = handle->createExporter(params);
+    ASSERT_NE(exporter, nullptr);
+
+    EXPECT_EQ(exporter->exportEvent(nixlTelemetryEvent{
+                nixl_telemetry_event_type_t::AGENT_ERR_BACKEND, 1}),
+              NIXL_SUCCESS);
+    EXPECT_EQ(exporter->exportEvent(nixlTelemetryEvent{
+                nixl_telemetry_event_type_t::AGENT_AIS_MT_WRITE_BYTES, 4096, 0}),
+              NIXL_SUCCESS);
+    EXPECT_EQ(exporter->exportEvent(nixlTelemetryEvent{
+                nixl_telemetry_event_type_t::AGENT_AIS_MT_WRITE_BYTES, 8192, 1}),
+              NIXL_SUCCESS);
+    EXPECT_EQ(exporter->exportEvent(nixlTelemetryEvent{
+                nixl_telemetry_event_type_t::AGENT_AIS_MT_THREAD_COUNT, 8}),
+              NIXL_SUCCESS);
+
+    const std::string body = waitForMetricsBody(port_);
+    ASSERT_FALSE(body.empty()) << "Got empty /metrics response on port " << port_;
+
+    EXPECT_NE(body.find("agent_err_backend_total"), std::string::npos);
+
+    PrometheusSample err_sample;
+    ASSERT_TRUE(
+        findAgentMetricSample(body, "agent_err_backend_total", agent_name, err_sample));
+    EXPECT_EQ(err_sample.value, 1.0);
+
+    PrometheusSample gpu0_sample;
+    ASSERT_TRUE(findAgentMetricSample(
+        body, "agent_ais_mt_write_bytes_total", agent_name, gpu0_sample, "0"));
+    EXPECT_EQ(gpu0_sample.value, 4096.0);
+    EXPECT_EQ(gpu0_sample.labels["gpu_id"], "0");
+
+    PrometheusSample gpu1_sample;
+    ASSERT_TRUE(findAgentMetricSample(
+        body, "agent_ais_mt_write_bytes_total", agent_name, gpu1_sample, "1"));
+    EXPECT_EQ(gpu1_sample.value, 8192.0);
+    EXPECT_EQ(gpu1_sample.labels["gpu_id"], "1");
+
+    PrometheusSample thread_sample;
+    ASSERT_TRUE(findAgentMetricSample(
+        body, "agent_ais_mt_thread_count", agent_name, thread_sample));
+    EXPECT_EQ(thread_sample.value, 8.0);
 }

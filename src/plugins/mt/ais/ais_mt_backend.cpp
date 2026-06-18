@@ -23,6 +23,7 @@
 #include "ais_mt_backend.h"
 #include "ais_mt_utils.h"
 #include "file/file_utils.h"
+#include "telemetry_event.h"
 #include <taskflow/taskflow.hpp>
 #include <unordered_map>
 #include <unordered_set>
@@ -121,11 +122,18 @@ getThreadCount(const nixlBackendInitParams *init_params) {
 }
 
 void
-runHipFileOp(AisMtTransferRequestH *req, std::atomic<nixl_status_t> *overall_status) {
+runHipFileOp(AisMtTransferRequestH *req,
+             std::atomic<nixl_status_t> *overall_status,
+             nixlAisMtEngine *engine) {
+    const int32_t gpu_id = req->dev_id;
     if (req->dev_id >= 0) {
         const hipError_t dev_err = hipSetDevice(req->dev_id);
         if (dev_err != hipSuccess) {
             NIXL_ERROR << "AIS_MT: hipSetDevice failed: " << hipGetErrorString(dev_err);
+            if (engine) {
+                engine->addTelemetryEvent(
+                    nixl_telemetry_event_type_t::AGENT_AIS_MT_HIP_DEVICE_ERRORS, 1, gpu_id);
+            }
             overall_status->store(NIXL_ERR_BACKEND);
             return;
         }
@@ -133,16 +141,32 @@ runHipFileOp(AisMtTransferRequestH *req, std::atomic<nixl_status_t> *overall_sta
 
     ssize_t nbytes = 0;
     if (req->op == hipFileBatchRead) {
+        if (engine) {
+            engine->addTelemetryEvent(nixl_telemetry_event_type_t::AGENT_AIS_MT_READ_OPS, 1,
+                                      gpu_id);
+        }
         nbytes = hipFileRead(req->fh, req->addr, req->size, req->file_offset, 0);
         if (nbytes < 0) {
             NIXL_ERROR << "AIS_MT: hipFileRead failed: " << strerror(errno);
+            if (engine) {
+                engine->addTelemetryEvent(
+                    nixl_telemetry_event_type_t::AGENT_AIS_MT_READ_ERRORS, 1, gpu_id);
+            }
             overall_status->store(NIXL_ERR_BACKEND);
             return;
         }
     } else if (req->op == hipFileBatchWrite) {
+        if (engine) {
+            engine->addTelemetryEvent(nixl_telemetry_event_type_t::AGENT_AIS_MT_WRITE_OPS, 1,
+                                      gpu_id);
+        }
         nbytes = hipFileWrite(req->fh, req->addr, req->size, req->file_offset, 0);
         if (nbytes < 0) {
             NIXL_ERROR << "AIS_MT: hipFileWrite failed: " << strerror(errno);
+            if (engine) {
+                engine->addTelemetryEvent(
+                    nixl_telemetry_event_type_t::AGENT_AIS_MT_WRITE_ERRORS, 1, gpu_id);
+            }
             overall_status->store(NIXL_ERR_BACKEND);
             return;
         }
@@ -155,8 +179,19 @@ runHipFileOp(AisMtTransferRequestH *req, std::atomic<nixl_status_t> *overall_sta
         NIXL_ERROR << "AIS_MT: error: short "
                    << ((req->op == hipFileBatchRead) ? "read: " : "write: ") << nbytes << " out of "
                    << req->size << " bytes - address=" << req->addr;
+        if (engine) {
+            engine->addTelemetryEvent(nixl_telemetry_event_type_t::AGENT_AIS_MT_SHORT_IO, 1,
+                                      gpu_id);
+        }
         overall_status->store(NIXL_ERR_BACKEND);
         return;
+    }
+
+    if (engine) {
+        const auto bytes_event = (req->op == hipFileBatchRead) ?
+                                     nixl_telemetry_event_type_t::AGENT_AIS_MT_READ_BYTES :
+                                     nixl_telemetry_event_type_t::AGENT_AIS_MT_WRITE_BYTES;
+        engine->addTelemetryEvent(bytes_event, static_cast<uint64_t>(nbytes), gpu_id);
     }
 }
 
@@ -198,6 +233,7 @@ nixlAisMtEngine::nixlAisMtEngine(const nixlBackendInitParams *init_params)
       thread_count_(getThreadCount(init_params)),
       executor_(std::make_unique<tf::Executor>(thread_count_)) {
     NIXL_DEBUG << "AIS_MT: thread count=" << thread_count_;
+    addTelemetryEvent(nixl_telemetry_event_type_t::AGENT_AIS_MT_THREAD_COUNT, thread_count_);
 }
 
 nixl_status_t
@@ -222,6 +258,7 @@ nixlAisMtEngine::registerMem(const nixlBlobDesc &mem,
         }
         catch (const std::exception &e) {
             NIXL_ERROR << "AIS_MT: failed to create file handle: " << e.what();
+            addTelemetryEvent(nixl_telemetry_event_type_t::AGENT_AIS_MT_FILE_HANDLE_ERRORS, 1);
             return NIXL_ERR_BACKEND;
         }
         ais_mt_file_map_[mem.devId] = handle;
@@ -234,6 +271,8 @@ nixlAisMtEngine::registerMem(const nixlBlobDesc &mem,
         if (error_id != hipSuccess) {
             NIXL_ERROR << "AIS_MT: error: hipSetDevice returned "
                        << hipGetErrorString(error_id) << " for device ID " << mem.devId;
+            addTelemetryEvent(nixl_telemetry_event_type_t::AGENT_AIS_MT_HIP_DEVICE_ERRORS, 1,
+                              mem.devId);
             return NIXL_ERR_BACKEND;
         }
         [[fallthrough]];
@@ -241,11 +280,30 @@ nixlAisMtEngine::registerMem(const nixlBlobDesc &mem,
 
     case DRAM_SEG: {
         try {
-            out = new nixlAisMtMetadata((void *)mem.addr, mem.len, 0);
+            auto *md = new nixlAisMtMetadata((void *)mem.addr, mem.len, 0);
+            const int32_t gpu_id = (nixl_mem == VRAM_SEG) ? mem.devId : NIXL_TELEMETRY_NO_GPU;
+            if (auto *mem_data = std::get_if<MemSegData>(&md->data_)) {
+                switch (mem_data->buf->regStatus()) {
+                case aisMtBufRegStatus::Registered:
+                    addTelemetryEvent(
+                        nixl_telemetry_event_type_t::AGENT_AIS_MT_BUF_REGISTER_OK, 1, gpu_id);
+                    break;
+                case aisMtBufRegStatus::CompatFallback:
+                    addTelemetryEvent(
+                        nixl_telemetry_event_type_t::AGENT_AIS_MT_BUF_REGISTER_COMPAT, 1, gpu_id);
+                    break;
+                case aisMtBufRegStatus::Failed:
+                    break;
+                }
+            }
+            out = md;
             return NIXL_SUCCESS;
         }
         catch (const std::exception &e) {
             NIXL_ERROR << "AIS_MT: failed to create memory buffer: " << e.what();
+            const int32_t gpu_id = (nixl_mem == VRAM_SEG) ? mem.devId : NIXL_TELEMETRY_NO_GPU;
+            addTelemetryEvent(
+                nixl_telemetry_event_type_t::AGENT_AIS_MT_BUF_REGISTER_ERRORS, 1, gpu_id);
             return NIXL_ERR_BACKEND;
         }
     }
@@ -343,13 +401,14 @@ nixlAisMtEngine::prepXfer(const nixl_xfer_op_t &operation,
         return NIXL_ERR_INVALID_PARAM;
     }
     ais_mt_handle->taskflow.emplace(
-        [reqs = &ais_mt_handle->request_list,
+        [this,
+         reqs = &ais_mt_handle->request_list,
          overall_status = &ais_mt_handle->overall_status]() {
             for (AisMtTransferRequestH &req : *reqs) {
                 if (overall_status->load() != NIXL_SUCCESS) {
                     return;
                 }
-                runHipFileOp(&req, overall_status);
+                runHipFileOp(&req, overall_status, this);
             }
         });
 
@@ -391,12 +450,16 @@ nixlAisMtEngine::checkXfer(nixlBackendReqH *handle) const {
         if (dev_err != hipSuccess) {
             NIXL_ERROR << "AIS_MT: hipSetDevice failed during sync: "
                        << hipGetErrorString(dev_err);
+            addTelemetryEvent(nixl_telemetry_event_type_t::AGENT_AIS_MT_HIP_DEVICE_ERRORS, 1,
+                              dev_id);
             return NIXL_ERR_BACKEND;
         }
         const hipError_t sync_err = hipDeviceSynchronize();
         if (sync_err != hipSuccess) {
             NIXL_ERROR << "AIS_MT: hipDeviceSynchronize failed: "
                        << hipGetErrorString(sync_err);
+            addTelemetryEvent(nixl_telemetry_event_type_t::AGENT_AIS_MT_HIP_SYNC_ERRORS, 1,
+                              dev_id);
             return NIXL_ERR_BACKEND;
         }
     }

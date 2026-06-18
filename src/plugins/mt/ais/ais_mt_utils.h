@@ -12,6 +12,12 @@
 #include <nixl.h>
 #include <hipfile.h>
 
+enum class aisMtBufRegStatus {
+    Registered,
+    CompatFallback,
+    Failed,
+};
+
 class aisMtFileHandle {
 public:
     aisMtFileHandle(int fd);
@@ -40,9 +46,15 @@ public:
     aisMtMemBuf &
     operator=(aisMtMemBuf &&) = delete;
 
+    [[nodiscard]] aisMtBufRegStatus
+    regStatus() const noexcept {
+        return status_;
+    }
+
 private:
     void *base_{nullptr};
     bool registered_{false};
+    aisMtBufRegStatus status_{aisMtBufRegStatus::Failed};
 };
 
 class aisMtUtil {

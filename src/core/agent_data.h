@@ -62,6 +62,8 @@ using nixl_socket_peer_t = std::pair<std::string, int>;
 
 using nixl_socket_map_t = std::map<nixl_socket_peer_t, int>;
 
+class nixlBackendEngine;
+
 class nixlAgentData {
     private:
         const std::string name_;
@@ -134,10 +136,11 @@ class nixlAgentData {
             }
         }
 
+        void
+        drainBackendTelemetry(nixlBackendEngine *backend);
+
     friend class nixlAgent;
 };
-
-class nixlBackendEngine;
 
 // This class hides away the nixlBackendEngine from user of the Agent API
 class nixlBackendH {

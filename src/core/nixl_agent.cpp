@@ -42,6 +42,14 @@ const std::vector<std::vector<std::string>> illegal_plugin_combinations = {
 } // namespace
 
 void
+nixlAgentData::drainBackendTelemetry(nixlBackendEngine *backend) {
+    if (!telemetry_ || !backend) {
+        return;
+    }
+    telemetry_->ingestEvents(backend->getTelemetryEvents());
+}
+
+void
 nixlEngineDeleter::operator()(nixlBackendEngine *engine) const noexcept {
     auto &plugin_manager = nixlPluginManager::getInstance();
     auto plugin_handle = plugin_manager.getBackendPlugin(engine->getType());
@@ -450,11 +458,13 @@ nixlAgent::registerMem(const nixl_reg_dlist_t &descs,
                 ret = it->second.loadLocalData(std::move(sec_descs), backend);
                 if (ret == NIXL_SUCCESS) {
                     count++;
+                    data->drainBackendTelemetry(backend);
                 } else {
                     data->localSection_.remDescList(descs, backend);
                 }
             } else {
                 count++;
+                data->drainBackendTelemetry(backend);
             }
         } // a bad_ret can be saved in an else
     }
@@ -512,6 +522,8 @@ nixlAgent::deregisterMem(const nixl_reg_dlist_t &descs,
         const nixl_status_t ret = data->localSection_.remDescList(descs, backend);
         if (ret != NIXL_SUCCESS) {
             bad_ret = ret;
+        } else {
+            data->drainBackendTelemetry(backend);
         }
     }
     if (bad_ret == NIXL_SUCCESS) {
@@ -1130,6 +1142,7 @@ nixlAgent::postXferReq(nixlXferReqH *req_hndl,
         } else {
             req_hndl->updateRequestStats(data->telemetry_.get(), NIXL_TELEMETRY_POST_AND_FINISH);
         }
+        data->drainBackendTelemetry(req_hndl->engine);
     }
 
     return req_hndl->status;
@@ -1165,6 +1178,7 @@ nixlAgent::getXferStatus (nixlXferReqH *req_hndl) const {
             } else if (req_hndl->status < 0) {
                 data->addErrorTelemetry(req_hndl->status);
             }
+            data->drainBackendTelemetry(req_hndl->engine);
         }
     }
 
@@ -1220,6 +1234,9 @@ nixlAgent::releaseXferReq(nixlXferReqH *req_hndl) const {
             // just in case the backend doesn't set to NULL on success
             // this will prevent calling releaseReqH again in destructor
             req_hndl->backendHandle = nullptr;
+        }
+        if (data->telemetry_) {
+            data->drainBackendTelemetry(req_hndl->engine);
         }
     }
     delete req_hndl;

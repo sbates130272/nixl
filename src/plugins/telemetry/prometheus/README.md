@@ -77,7 +77,9 @@ export NIXL_PLUGIN_DIR="path/to/dir/with/.so/files"
 | `agent_rx_requests_num` | Yes | No | No |
 | `agent_xfer_time` | Yes | No | No |
 | `agent_xfer_post_time` | Yes | No | No |
-| Error event types (`agent_err_*`) | No | No | No |
+| `agent_err_*` | Yes | No | No |
+| `agent_ais_mt_*` (GPU-labeled) | Yes | No | No |
+| `agent_ais_mt_thread_count` | No | Yes | No |
 
 **Counter, Gauge, Histogram** - as implemented by the Prometheus exporter
 
@@ -91,3 +93,4 @@ Each telemetry metrics is provided with the following labels:
 
 - Hostname where the agent runs
 - Agent name (as custom provided during initialization, can be deprecated in the next versions)
+- `gpu_id` on AIS_MT per-GPU transfer and HIP error metrics (multi-GPU nodes)

@@ -41,13 +41,16 @@ aisMtMemBuf::aisMtMemBuf(void *ptr, size_t sz, int flags) : base_(ptr) {
         if (aisMtCompatModeAllowed()) {
             NIXL_WARN << "AIS_MT: buffer registration failed - compat mode: err="
                       << status.err;
+            status_ = aisMtBufRegStatus::CompatFallback;
             return;
         }
+        status_ = aisMtBufRegStatus::Failed;
         throw std::runtime_error(
             "AIS_MT: hipFileBufRegister failed (err=" + std::to_string(status.err) +
             "); set HIPFILE_ALLOW_COMPAT_MODE=true to allow fallback");
     }
     registered_ = true;
+    status_ = aisMtBufRegStatus::Registered;
 }
 
 aisMtMemBuf::~aisMtMemBuf() {

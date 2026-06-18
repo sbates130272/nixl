@@ -68,6 +68,9 @@ print_telemetry_event(const nixlTelemetryEvent &event) {
     std::cout << "Event name: " << nixlEnumStrings::telemetryEventTypeStr(event.eventType_)
               << std::endl;
     std::cout << "Value: " << event.value_ << std::endl;
+    if (event.gpuId_ != NIXL_TELEMETRY_NO_GPU) {
+        std::cout << "GPU ID: " << event.gpuId_ << std::endl;
+    }
 
     std::cout << "===========================" << std::endl;
 }

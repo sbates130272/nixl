@@ -33,7 +33,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Constants from telemetry_event.h
-TELEMETRY_VERSION = 3
+TELEMETRY_VERSION = 4
 
 # NIXL telemetry event types (nixl_telemetry_event_type_t)
 AGENT_TX_BYTES = 0
@@ -56,6 +56,20 @@ AGENT_ERR_NOT_SUPPORTED = 16
 AGENT_ERR_REMOTE_DISCONNECT = 17
 AGENT_ERR_CANCELED = 18
 AGENT_ERR_NO_TELEMETRY = 19
+AGENT_AIS_MT_READ_BYTES = 20
+AGENT_AIS_MT_WRITE_BYTES = 21
+AGENT_AIS_MT_READ_OPS = 22
+AGENT_AIS_MT_WRITE_OPS = 23
+AGENT_AIS_MT_READ_ERRORS = 24
+AGENT_AIS_MT_WRITE_ERRORS = 25
+AGENT_AIS_MT_SHORT_IO = 26
+AGENT_AIS_MT_BUF_REGISTER_OK = 27
+AGENT_AIS_MT_BUF_REGISTER_COMPAT = 28
+AGENT_AIS_MT_BUF_REGISTER_ERRORS = 29
+AGENT_AIS_MT_FILE_HANDLE_ERRORS = 30
+AGENT_AIS_MT_HIP_DEVICE_ERRORS = 31
+AGENT_AIS_MT_HIP_SYNC_ERRORS = 32
+AGENT_AIS_MT_THREAD_COUNT = 33
 
 # Global flag for graceful shutdown
 running = True
@@ -77,6 +91,8 @@ class NixlTelemetryEvent(ctypes.Structure):
         ("event_type", ctypes.c_uint32),
         ("_padding", ctypes.c_char * 4),
         ("value", ctypes.c_uint64),
+        ("gpu_id", ctypes.c_int32),
+        ("_padding2", ctypes.c_char * 4),
     ]
 
 
