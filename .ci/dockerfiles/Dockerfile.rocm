@@ -1,0 +1,397 @@
+# Copyright (c) Advanced Micro Devices, Inc. All rights reserved.
+# SPDX-License-Identifier: MIT
+
+ARG UBUNTU_CODENAME=noble
+ARG BASE_IMAGE=ubuntu:${UBUNTU_CODENAME}
+
+# Skip Infinia Libs
+
+FROM ${BASE_IMAGE}
+ARG UBUNTU_CODENAME
+ARG UBUNTU_MAJOR_VERSION=24
+ARG UBUNTU_MINOR_VERSION=04
+ARG ROCM_VERSION=7.14.0
+
+# Build arguments
+ARG _UID=148069
+ARG _GID=30
+ARG _LOGIN=svc-nixl
+ARG _GROUP=hardware
+ARG _HOME=/home/$_LOGIN
+ARG ARCH=x86_64
+ARG NIXL_INSTALL_DIR
+ARG PRE_INSTALLED_ENV
+ARG PRE_INSTALLED_NIXL_ENV
+ARG PRE_INSTALLED_UCX_ENV
+ARG UCX_VERSION=v1.21.x
+
+# Update package list and install required packages in one layer
+RUN apt-get update && \
+    apt-get install -y \
+        ca-certificates \
+        curl \
+        gpg \
+        kmod \
+        python3 \
+        python3-pip \
+        sudo && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+# Install ROCm from the prerelease multi-arch repo (follows the "new" layout:
+# install path /opt/rocm/core-<MAJOR>.<MINOR>, amdrocm-runtime-dev meta-package).
+RUN ROCM_MAJOR=$(echo "${ROCM_VERSION}" | cut -d. -f1); \
+    ROCM_MINOR=$(echo "${ROCM_VERSION}" | cut -d. -f2); \
+    ROCM_INSTALL_PATH="/opt/rocm/core-${ROCM_MAJOR}.${ROCM_MINOR}"; \
+    printf 'ROCM_MAJOR=%s\nROCM_MINOR=%s\nROCM_BUILD_TYPE=%s\nROCM_INSTALL_PATH=%s\n' \
+        "${ROCM_MAJOR}" "${ROCM_MINOR}" "new" "${ROCM_INSTALL_PATH}" \
+        > /etc/rocm-build.env
+RUN . /etc/rocm-build.env && \
+    echo "deb [arch=amd64 trusted=yes] https://rocm.prereleases.amd.com/packages-multi-arch/ubuntu${UBUNTU_MAJOR_VERSION}${UBUNTU_MINOR_VERSION} stable main" \
+        > /etc/apt/sources.list.d/amdrocm-prerelease.list
+
+# Install all build deps prior to running build-rocm.sh
+RUN apt-get update && \
+    apt-get install -y \
+        amdrocm-runtime-dev${ROCM_MAJOR}.${ROCM_MINOR} \
+        build-essential \
+        cmake \
+        gdb \
+        git \
+        libasio-dev \
+        libgflags-dev \
+        libmount-dev \
+        libtomlplusplus-dev \
+        liburing-dev \
+        llvm-dev \
+        meson \
+        ninja-build \
+        pkg-config \
+        python3.12-dev \
+        python3-pybind11 \
+        python3.12-venv && \
+    # nixl purposesly reinstalls these deps so they get pulled \
+    # from DOCA. For now, just grab the default ones. \
+    apt-get -y install \
+        libibverbs-dev \
+        rdma-core \
+        ibverbs-utils \
+        libibumad-dev \
+        libnuma-dev \
+        librdmacm-dev \
+        ibverbs-providers && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+COPY AMDRootCA.crt /usr/local/share/ca-certificates
+RUN update-ca-certificates
+RUN pip3 \
+        --no-cache-dir \
+        install \
+        --break-system-packages \
+        --cert /etc/ssl/certs/ca-certificates.crt \
+        meson \
+        meson-python \
+        pybind11 \
+        patchelf \
+        click \
+        tabulate \
+        auditwheel \
+        tomlkit \
+        pytest \
+        pytest-timeout \
+        zmq \
+        mpmath \
+        typing-extensions \
+        sympy \
+        numpy \
+        networkx \
+        MarkupSafe \
+        fsspec \
+        filelock \
+        jinja2 \
+        nanobind
+RUN pip3 \
+        --no-cache-dir \
+        install \
+        --break-system-packages \
+        --cert /etc/ssl/certs/ca-certificates.crt \
+        --index-url https://rocm.prereleases.amd.com/whl-multi-arch/ \
+        torch==2.11.0+rocm7.14.0rc0
+ENV PRE_INSTALLED_ENV=1
+
+# Create group and user in one RUN command to reduce layers
+RUN if ! getent group "${_GID}" > /dev/null 2>&1; then \
+    groupadd -g "${_GID}" "${_GROUP}"; \
+    fi && \
+    useradd -u "${_UID}" -g "${_GID}" -m -s /bin/bash "${_LOGIN}" && \
+    mkdir -p "${_HOME}" && \
+    chown -R "${_UID}":"${_GID}" "${_HOME}"
+
+ARG NIXL_INSTALL_DIR=/opt/nixl
+RUN mkdir -p ${NIXL_INSTALL_DIR} && chown -R "${_UID}":"${_GID}" ${NIXL_INSTALL_DIR}
+
+# Configure sudo access
+RUN mkdir -p /etc/sudoers.d && \
+    echo "${_LOGIN} ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/${_LOGIN} && \
+    chmod 440 /etc/sudoers.d/${_LOGIN} && \
+    chown root:root /etc/sudoers.d/${_LOGIN}
+
+# Download & Install various other source deps
+#
+# These env vars are consumed by the dep-build RUN steps below. Values mirror the
+# defaults in .gitlab/build.sh. INSTALL_DIR/LIBFABRIC_INSTALL_DIR point at the
+# NIXL prefix so build-rocm.sh (run with PRE_INSTALLED_ENV=1) finds them prebuilt.
+ENV SUDO=
+ENV TMPDIR=/tmp
+ENV INSTALL_DIR=${NIXL_INSTALL_DIR}
+ENV LIBFABRIC_INSTALL_DIR=${NIXL_INSTALL_DIR}
+ENV LIBFABRIC_VERSION=v1.21.0
+ENV ABSL_TAG=lts_2025_08_14
+ENV GRPC_TAG=v1.73.0
+ENV AZURITE_VER=3.35.0
+ENV NPROC=16
+
+# HACK for forgotten deps
+RUN apt-get update && \
+    apt-get install -y \
+        autoconf \
+        libtool \
+        wget && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+# Skipping source deps as we don't care for the other plugins...
+
+# RUN \
+#     # Rust
+#     wget --tries=3 --waitretry=5 https://static.rust-lang.org/rustup/dist/${ARCH}-unknown-linux-gnu/rustup-init -O ${TMPDIR}/rustup-init && \
+#     chmod +x ${TMPDIR}/rustup-init && \
+#     ${TMPDIR}/rustup-init -y --default-toolchain 1.86.0
+# RUN \   
+#     # Uv
+#     wget --tries=3 --waitretry=5 "https://astral.sh/uv/install.sh" -O ${TMPDIR}/install_uv.sh && \
+#     chmod +x ${TMPDIR}/install_uv.sh && \
+#     ${TMPDIR}/install_uv.sh
+
+# RUN \
+#     # Node Version Manager & Nodejs \
+#     wget --tries=3 --waitretry=5 "https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.4/install.sh" -O ${TMPDIR}/install_nvm.sh && \
+#     chmod +x ${TMPDIR}/install_nvm.sh && \
+#     ${TMPDIR}/install_nvm.sh && \
+#     export NVM_DIR=${HOME}/.nvm && \
+#     [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh" && \
+#     nvm install --lts  # install nodejs && \
+#     npm install -g azurite@${AZURITE_VER}
+
+# RUN \
+#     # libfrabric \
+#     wget --tries=3 --waitretry=5 -O "${TMPDIR}/libfabric-${LIBFABRIC_VERSION#v}.tar.bz2" "https://github.com/ofiwg/libfabric/releases/download/${LIBFABRIC_VERSION}/libfabric-${LIBFABRIC_VERSION#v}.tar.bz2" && \
+#     tar xjf "${TMPDIR}/libfabric-${LIBFABRIC_VERSION#v}.tar.bz2" -C ${TMPDIR} && \
+#     rm "${TMPDIR}/libfabric-${LIBFABRIC_VERSION#v}.tar.bz2" && \
+#     ( \
+#         cd ${TMPDIR}/libfabric-* && \
+#         ./autogen.sh && \
+#         ./configure --prefix="${LIBFABRIC_INSTALL_DIR}" \
+#                     --disable-verbs \
+#                     --disable-psm3 \
+#                     --disable-opx \
+#                     --disable-usnic \
+#                     --disable-rstream \
+#                     --enable-efa && \
+#         make -j"$NPROC" && \
+#         make install && \
+#         $SUDO ldconfig && \
+#         cd .. && \
+#         rm -rf libfabric-* \
+#     )
+# RUN \
+#     # Abseil \
+#     ( \
+#         cd ${TMPDIR} && \
+#         git clone https://github.com/abseil/abseil-cpp.git && \
+#         cd abseil-cpp && \
+#         git fetch --depth 1 origin "${ABSL_TAG}" && \
+#         git checkout "${ABSL_TAG}" && \
+#         mkdir -p build && cd build && \
+#         # TODO: for sanitizer builds, re-add the DEPS_SANITIZE cmake args here \
+#         # (dropped: the bash array expansion is unsupported in Dockerfile RUN sh). \
+#         cmake .. \
+#             -DCMAKE_INSTALL_PREFIX="${INSTALL_DIR}" \
+#             -DCMAKE_INSTALL_LIBDIR=lib \
+#             -DCMAKE_BUILD_TYPE=Release \
+#             -DBUILD_SHARED_LIBS=ON \
+#             -DCMAKE_CXX_STANDARD=20 \
+#             -DABSL_PROPAGATE_CXX_STD=ON \
+#             -DABSL_ENABLE_INSTALL=ON && \
+#         make -j"$NPROC" && \
+#         $SUDO make install && \
+#         $SUDO ldconfig && \
+#         cd ${TMPDIR} && \
+#         rm -rf abseil-cpp \
+#     )
+# RUN \
+#     # grpc
+#     ( \
+#         cd ${TMPDIR} && \
+#         git clone --recurse-submodules -b "${GRPC_TAG}" --depth 1 --shallow-submodules https://github.com/grpc/grpc && \
+#         cd grpc && \
+#         mkdir -p cmake/build && \
+#         cd cmake/build && \
+#         # TODO: for sanitizer builds, re-add the DEPS_SANITIZE cmake args here \
+#         # (dropped: the bash array expansion is unsupported in Dockerfile RUN sh). \
+#         cmake ../.. \
+#             -DgRPC_INSTALL=ON \
+#             -DgRPC_BUILD_TESTS=OFF \
+#             -DBUILD_SHARED_LIBS=ON \
+#             -DCMAKE_CXX_STANDARD=20 \
+#             -DCMAKE_BUILD_TYPE=Release \
+#             -DCMAKE_INSTALL_PREFIX="${INSTALL_DIR}" \
+#             -DCMAKE_INSTALL_LIBDIR=lib \
+#             -DCMAKE_PREFIX_PATH="${INSTALL_DIR}" \
+#             -Dabsl_DIR="${INSTALL_DIR}/lib/cmake/absl" \
+#             -DgRPC_SSL_PROVIDER=package \
+#             -DgRPC_ABSL_PROVIDER=package \
+#             -DgRPC_PROTOBUF_PROVIDER=module \
+#             -DgRPC_ZLIB_PROVIDER=package && \
+#         make -j"$NPROC" && \
+#         $SUDO make install && \
+#         $SUDO ldconfig && \
+#         cd ${TMPDIR} && \
+#         rm -rf grpc \
+#     )
+# RUN \
+#     # etcd
+#     ( \
+#         cd ${TMPDIR} && \
+#         git clone --depth 1 https://github.com/etcd-cpp-apiv3/etcd-cpp-apiv3.git && \
+#         cd etcd-cpp-apiv3 && \
+#         sed -i '/^find_dependency(cpprestsdk)$/d' etcd-cpp-api-config.in.cmake && \
+#         mkdir build && cd build && \
+#         # TODO: for sanitizer builds, re-add the DEPS_SANITIZE cmake args here \
+#         # (dropped: the bash array expansion is unsupported in Dockerfile RUN sh). \
+#         cmake .. \
+#             -DBUILD_ETCD_CORE_ONLY=ON \
+#             -DCMAKE_BUILD_TYPE=Release \
+#             -DETCD_CMAKE_CXX_STANDARD=20 \
+#             -DCMAKE_CXX_STANDARD=20 \
+#             -DCMAKE_INSTALL_PREFIX="${INSTALL_DIR}" \
+#             -DCMAKE_INSTALL_LIBDIR=lib \
+#             -DCMAKE_PREFIX_PATH="${INSTALL_DIR}" && \
+#         make -j"$NPROC" && \
+#         $SUDO make install && \
+#         $SUDO ldconfig \
+#     )
+# RUN \
+#     # AWS SDK
+#     ( \
+#         cd ${TMPDIR} && \
+#         git clone --recurse-submodules --depth 1 --shallow-submodules https://github.com/aws/aws-sdk-cpp.git --branch 1.11.760 && \
+#         mkdir aws_sdk_build && \
+#         cd aws_sdk_build && \
+#         cmake ../aws-sdk-cpp/ -DCMAKE_BUILD_TYPE=Release -DBUILD_ONLY="s3;s3-crt" -DENABLE_TESTING=OFF -DCMAKE_CXX_STANDARD=20 -DCMAKE_INSTALL_PREFIX=/usr/local && \
+#         make -j"$NPROC" && \
+#         $SUDO make install && \
+#         cd .. && \
+#         rm -rf aws_sdk_build aws-sdk-cpp \
+#     )
+# RUN \
+#     # gusli
+#     ( \
+#         cd ${TMPDIR} && \
+#         git clone https://github.com/nvidia/gusli.git && \
+#         cd gusli && \
+#         $SUDO make all CXX="g++ -std=c++20" BUILD_RELEASE=1 BUILD_FOR_UNITEST=0 VERBOSE=1 ALLOW_USE_URING=0 && \
+#         $SUDO ldconfig && \
+#         cd .. && \
+#         $SUDO rm -rf gusli \
+#     )
+# RUN \
+#     # Mooncake
+#     ( \
+#         cd ${TMPDIR} && \
+#         MOONCAKE_VERSION="${MOONCAKE_VERSION:-v0.3.10.post1}" && \
+#         echo "MOONCAKE_VERSION: ${MOONCAKE_VERSION}" && \
+#         git clone --depth 1 --branch "${MOONCAKE_VERSION}" https://github.com/kvcache-ai/Mooncake.git && \
+#         cd Mooncake && \
+#         sed -i '/liburing-dev/d' dependencies.sh && \
+#         $SUDO bash dependencies.sh -y && \
+#         mkdir build && cd build && \
+#         cmake .. -DBUILD_SHARED_LIBS=ON -DWITH_STORE=OFF -G Ninja && \
+#         ninja -j"$NPROC" && \
+#         $SUDO ninja install && \
+#         $SUDO ldconfig && \
+#         cd .. && \
+#         rm -rf Mooncake \
+#     )
+# RUN \
+#     # GTest Parallel
+#     ( \
+#         cd ${TMPDIR} && \
+#         git clone --depth 1 https://github.com/google/gtest-parallel.git && \
+#         mkdir -p ${INSTALL_DIR}/bin && \
+#         cp ${TMPDIR}/gtest-parallel/* ${INSTALL_DIR}/bin/ \
+#     )
+# RUN \
+#     # Azure CLI
+#     ( \
+#         cd ${TMPDIR} && \
+#         df -h && \
+#         curl -sL https://aka.ms/InstallAzureCLIDeb | $SUDO bash && \
+#         git clone --depth 1 https://github.com/Azure/azure-sdk-for-cpp.git --branch  azure-storage-blobs_12.15.0 && \
+#         cd azure-sdk-for-cpp/ && \
+#         mkdir build && cd build && \
+#         AZURE_SDK_DISABLE_AUTO_VCPKG=1 cmake .. -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=ON -DCMAKE_INSTALL_PREFIX=/usr/local -DDISABLE_AMQP=ON -DDISABLE_AZURE_CORE_OPENTELEMETRY=ON -DCMAKE_CXX_STANDARD=20 && \
+#         cmake --build . --parallel "$NPROC" --target azure-storage-blobs azure-identity && \
+#         $SUDO cmake --install sdk/core && \
+#         $SUDO cmake --install sdk/storage/azure-storage-common && \
+#         $SUDO cmake --install sdk/storage/azure-storage-blobs && \
+#         $SUDO cmake --install sdk/identity \
+#     )
+
+# UCX installed separately.
+# RUN \
+#     git clone --depth 1 --branch "${UCX_VERSION}" https://github.com/openucx/ucx.git ${TMPDIR}/ucx && \
+#     ( \
+#         cd ${TMPDIR}/ucx && \
+#         ./autogen.sh && \
+#         ./contrib/configure-release-mt \
+#             --prefix="${UCX_INSTALL_DIR}" \
+#             --enable-shared \
+#             --disable-static \
+#             --disable-doxygen-doc \
+#             --enable-optimizations \
+#             --enable-cma \
+#             --enable-devel-headers \
+#             --with-verbs \
+#             --with-dm \
+#             --without-gdrcopy \
+#             ${UCX_CUDA_BUILD_ARGS} && \
+#         make -j"$NPROC" && \
+#         $SUDO make -j install-strip && \
+#         $SUDO ldconfig \
+#     )
+
+# Copy the full NIXL source tree. Placed last so edits don't bust the cached
+# dependency layers above. build-rocm.sh runs meson from the source root (source
+# dir = cwd) and later cd's into benchmark/nixlbench, so the whole tree is needed.
+COPY --chown="${_UID}":"${_GID}" . /nixl-src
+
+RUN apt-get update && \
+    apt-get install -y \
+        hwloc \
+        libhwloc-dev && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+# Switch to non-root user
+USER ${_LOGIN}
+
+# Set environment variables
+ENV HOME=${_HOME}
+ENV USER=${_LOGIN}
+
+WORKDIR /nixl-src
+RUN /nixl-src/.gitlab/build-rocm.sh ${NIXL_INSTALL_DIR}
+
+# Set working directory
+WORKDIR ${_HOME}
