@@ -51,7 +51,8 @@ RUN . /etc/rocm-build.env && \
         > /etc/apt/sources.list.d/amdrocm-prerelease.list
 
 # Install all build deps prior to running build-rocm.sh
-RUN apt-get update && \
+RUN . /etc/rocm-build.env && \
+    apt-get update && \
     apt-get install -y \
         amdrocm-runtime-dev${ROCM_MAJOR}.${ROCM_MINOR} \
         build-essential \
@@ -62,6 +63,7 @@ RUN apt-get update && \
         libgflags-dev \
         libmount-dev \
         libtomlplusplus-dev \
+        libaio-dev \
         liburing-dev \
         llvm-dev \
         meson \
