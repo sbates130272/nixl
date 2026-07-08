@@ -183,9 +183,6 @@ ninja -j"$NPROC" -C ${NIXL_BUILD_DIR} && ninja -j"$NPROC" -C ${NIXL_BUILD_DIR} i
 # cp ${BUILD_DIR}/nixl.pc ${INSTALL_DIR}/lib/pkgconfig/nixl.pc
 
 cd benchmark/nixlbench
-# nixlbench_gpu=rocm forces the HIP build path (CUDA is absent here anyway, but be
-# explicit so the ROCm code is what gets compiled). rocm_path points meson at the
-# HIP install so it finds libamdhip64 and hip/hip_runtime.h.
 meson setup ${NIXLBENCH_BUILD_DIR} -Dnixl_path=${INSTALL_DIR} -Dprefix=${INSTALL_DIR} \
-    -Dnixlbench_gpu=rocm -Drocm_path="${ROCM_PATH}"
+    -Duse_rocm=true -Drocm_path="${ROCM_PATH}"
 ninja -j"$NPROC" -C ${NIXLBENCH_BUILD_DIR} && ninja -j"$NPROC" -C ${NIXLBENCH_BUILD_DIR} install
