@@ -80,6 +80,14 @@ ENV PIP_CERT=${SYSTEM_CA_BUNDLE} \
 # libgrpc_plugin_support.so from /opt/nixl/lib. Every stage inherits this ENV.
 ENV LD_LIBRARY_PATH="${NIXL_INSTALL_DIR}/lib:${NIXL_INSTALL_DIR}/lib64:/usr/local/lib:/usr/local/lib64"
 
+# Install AMD root CA from BuildKit secret if provided (same pattern as Dockerfile.rocm.base).
+# Must run before any apt-get update that hits rocm.prereleases.amd.com over HTTPS.
+RUN --mount=type=secret,id=amd_root_ca,required=false \
+    if [ -f /run/secrets/amd_root_ca ] && [ -s /run/secrets/amd_root_ca ]; then \
+        cp /run/secrets/amd_root_ca /usr/local/share/ca-certificates/AMDRootCA.crt && \
+        update-ca-certificates; \
+    fi
+
 # Some ROCm base images ship broken cmake configs for these.
 RUN rm -rf /usr/lib/cmake/grpc /usr/lib/cmake/protobuf
 

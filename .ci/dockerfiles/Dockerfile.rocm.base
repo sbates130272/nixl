@@ -27,6 +27,9 @@ ARG UBUNTU_MINOR_VERSION=04
 ARG ROCM_VERSION=7.14.0
 
 # Minimal prereqs to reach the ROCm prerelease repo over HTTPS and install from it.
+# Retry config guards against transient CDN mirror-sync failures (unexpected file sizes).
+RUN printf 'Acquire::Retries "5";\nAcquire::https::Timeout "30";\n' \
+        > /etc/apt/apt.conf.d/99-retries
 RUN apt-get update && \
     apt-get install -y \
         ca-certificates \
@@ -36,8 +39,13 @@ RUN apt-get update && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
-# Install ROCm from the prerelease multi-arch repo (follows the "new" layout:
-# install path /opt/rocm/core-<MAJOR>.<MINOR>, amdrocm-runtime-dev meta-package).
+# Install AMD root CA before any HTTPS fetch to rocm.prereleases.amd.com.
+RUN --mount=type=secret,id=amd_root_ca,required=false \
+    if [ -f /run/secrets/amd_root_ca ] && [ -s /run/secrets/amd_root_ca ]; then \
+        cp /run/secrets/amd_root_ca /usr/local/share/ca-certificates/AMDRootCA.crt && \
+        update-ca-certificates; \
+    fi
+
 # /etc/rocm-build.env records the resolved layout for build-rocm.sh to read.
 RUN ROCM_MAJOR=$(echo "${ROCM_VERSION}" | cut -d. -f1); \
     ROCM_MINOR=$(echo "${ROCM_VERSION}" | cut -d. -f2); \
@@ -45,6 +53,10 @@ RUN ROCM_MAJOR=$(echo "${ROCM_VERSION}" | cut -d. -f1); \
     printf 'ROCM_MAJOR=%s\nROCM_MINOR=%s\nROCM_BUILD_TYPE=%s\nROCM_INSTALL_PATH=%s\n' \
         "${ROCM_MAJOR}" "${ROCM_MINOR}" "new" "${ROCM_INSTALL_PATH}" \
         > /etc/rocm-build.env
+
+# trusted=yes bypasses GPG signature checking for this repo. The signing key at
+# rocm.prereleases.amd.com/rocm.gpg.key is not publicly accessible (returns 403),
+# so we cannot use signed-by= here.
 RUN . /etc/rocm-build.env && \
     echo "deb [arch=amd64 trusted=yes] https://rocm.prereleases.amd.com/packages-multi-arch/ubuntu${UBUNTU_MAJOR_VERSION}${UBUNTU_MINOR_VERSION} stable main" \
         > /etc/apt/sources.list.d/amdrocm-prerelease.list
@@ -55,9 +67,3 @@ RUN . /etc/rocm-build.env && \
         amdrocm-runtime-dev${ROCM_MAJOR}.${ROCM_MINOR} && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
-
-RUN --mount=type=secret,id=amd_root_ca,required=false \
-    if [ -f /run/secrets/amd_root_ca ] && [ -s /run/secrets/amd_root_ca ]; then \
-        cp /run/secrets/amd_root_ca /usr/local/share/ca-certificates/AMDRootCA.crt && \
-        update-ca-certificates; \
-    fi
