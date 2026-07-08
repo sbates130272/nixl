@@ -5,7 +5,7 @@
 # ROCm base image: Ubuntu + the AMD ROCm runtime/dev stack, nothing else.
 #
 # Usage:
-#   docker build -f .ci/dockerfiles/Dockerfile.rocm_base -t rocm-base-7.14-ubuntu24.04:<build_id> .
+#   docker build -f .ci/dockerfiles/Dockerfile.rocm.base -t rocm-base-7.14-ubuntu24.04:<build_id> .
 #
 # Key build args (defaults target Ubuntu 24.04 / ROCm 7.14.0):
 #   UBUNTU_CODENAME        apt codename of the base image        (default: noble)

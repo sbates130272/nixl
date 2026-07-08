@@ -16,7 +16,7 @@
 #       --build-arg ROCM_BASE_IMAGE=<rocm_base_tag> -t nixl-rocm .
 #
 # ROCM_BASE_IMAGE should point towards an image that has ROCm already installed.
-# Dockerfile.rocm_base may be used if a base image does not exist. Currently, this
+# Dockerfile.rocm.base may be used if a base image does not exist. Currently, this
 # base image must also have a source-able /etc/rocm-build.env file that contains the
 # installed ROCm version and install location.
 #
